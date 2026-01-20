@@ -1,8 +1,10 @@
-from django.urls import path
-from .views import StudentRetrieveAPI, StudentSearchAPI, StudentListCreateAPI
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import StudentViewSet
+
+router = DefaultRouter()
+router.register(r'profiles', StudentViewSet)
 
 urlpatterns = [
-    path('search/', StudentSearchAPI.as_view(), name='student-search'),
-    path('', StudentListCreateAPI.as_view(), name='student-list-create'),
-    path('<int:pk>/', StudentRetrieveAPI.as_view(), name='student-detail'), # <--- ADD THIS
+    path('', include(router.urls)),
 ]

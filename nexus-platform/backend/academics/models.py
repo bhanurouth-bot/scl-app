@@ -1,63 +1,52 @@
 from django.db import models
-from students.models import Student # We might link to Grade/Section later
-
-class Room(models.Model):
-    name = models.CharField(max_length=50) # e.g., "Lab A", "101"
-    capacity = models.IntegerField(default=30)
-    has_projector = models.BooleanField(default=False)
-    has_ac = models.BooleanField(default=False)
-
-    def __str__(self):
-        return self.name
-
-class Teacher(models.Model):
-    first_name = models.CharField(max_length=100)
-    last_name = models.CharField(max_length=100)
-    employee_id = models.CharField(max_length=20, unique=True)
-    specialization = models.CharField(max_length=100) # e.g., "Physics"
-    
-    # Simple Availability (Optional for now)
-    is_active = models.BooleanField(default=True)
-
-    def __str__(self):
-        return f"{self.first_name} {self.last_name}"
+from core.models import Classroom, AcademicYear
+from hr.models import Employee
 
 class Subject(models.Model):
-    name = models.CharField(max_length=100) 
-    code = models.CharField(max_length=20, unique=True)
+    """
+    Master Database of Subjects.
+    Refers to the generic subject, not the specific class instance.
+    e.g., "Mathematics", "Physics", "Physical Education".
+    """
+    TYPE_CHOICES = [
+        ('THEORY', 'Theory'),
+        ('PRACTICAL', 'Practical / Lab'),
+        ('ELECTIVE', 'Elective (Optional)'),
+    ]
+
+    name = models.CharField(max_length=100, unique=True, help_text="e.g. Mathematics, English Literature")
+    code = models.CharField(max_length=20, unique=True, help_text="Short Code e.g. MATH-101")
+    subject_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='THEORY')
     
-    # NEW: Grading Schema
-    total_theory_marks = models.IntegerField(default=100)
-    total_practical_marks = models.IntegerField(default=0) # 0 means no practical
+    # Optional: Credits for GPA calculation later
+    credits = models.PositiveIntegerField(default=1, help_text="Credit weightage for this subject")
     
-    pass_theory_marks = models.IntegerField(default=33)
-    pass_practical_marks = models.IntegerField(default=0)
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.name} ({self.code})"
 
-class ScheduleItem(models.Model):
-    DAYS = [
-        ('MON', 'Monday'),
-        ('TUE', 'Tuesday'),
-        ('WED', 'Wednesday'),
-        ('THU', 'Thursday'),
-        ('FRI', 'Friday'),
-        ('SAT', 'Saturday'),
-    ]
-
-    # Who, What, Where, When?
+class SubjectAllocation(models.Model):
+    """
+    The link between a Class, a Subject, and a Teacher.
+    This tells the system: "Mr. Smith teaches Math to Grade 10-A".
+    CRITICAL for Timetables and Permissions.
+    """
+    academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE)
+    classroom = models.ForeignKey(Classroom, on_delete=models.CASCADE, related_name='subjects')
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
-    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE)
-    room = models.ForeignKey(Room, on_delete=models.SET_NULL, null=True)
+    teacher = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='allocated_subjects')
     
-    # Which Class? (We store this as text for now, e.g., "10-A")
-    grade = models.CharField(max_length=10) 
-    section = models.CharField(max_length=5)
+    # Optional: If this subject requires a specific textbook or syllabus link
+    syllabus_link = models.URLField(blank=True, null=True)
 
-    day_of_week = models.CharField(max_length=3, choices=DAYS)
-    start_time = models.TimeField()
-    end_time = models.TimeField()
+    class Meta:
+        # A class cannot have the same subject assigned twice in the same year (usually)
+        unique_together = ['academic_year', 'classroom', 'subject']
+        verbose_name = "Subject Allocation"
+        verbose_name_plural = "Subject Allocations"
 
     def __str__(self):
-        return f"{self.day_of_week} {self.start_time} - {self.subject} ({self.room})"
+        teacher_name = self.teacher.user.get_full_name() if self.teacher else "No Teacher"
+        return f"{self.classroom} - {self.subject.name} ({teacher_name})"

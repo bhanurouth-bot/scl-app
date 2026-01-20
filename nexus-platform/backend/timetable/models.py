@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from academics.models import Subject
+from core.models import Classroom
 
 class TimeSlot(models.Model):
     name = models.CharField(max_length=50) # e.g. "Period 1"
@@ -16,8 +17,9 @@ class TimetableEntry(models.Model):
         ('THU', 'Thursday'), ('FRI', 'Friday'), ('SAT', 'Saturday')
     ]
 
-    grade = models.CharField(max_length=10) # e.g. "10"
-    section = models.CharField(max_length=5) # e.g. "A"
+    # Replaced grade/section strings with Classroom FK
+    classroom = models.ForeignKey(Classroom, on_delete=models.CASCADE, related_name='timetable')
+    
     day = models.CharField(max_length=3, choices=DAYS_OF_WEEK)
     
     time_slot = models.ForeignKey(TimeSlot, on_delete=models.CASCADE)
@@ -27,7 +29,8 @@ class TimetableEntry(models.Model):
     room_number = models.CharField(max_length=20, default="Room 101")
 
     class Meta:
-        unique_together = ('grade', 'section', 'day', 'time_slot') # One class can't have 2 subjects at same time
+        unique_together = ('classroom', 'day', 'time_slot') # One class can't have 2 subjects at same time
+        verbose_name_plural = "Timetable Entries"
 
     def __str__(self):
-        return f"{self.grade}-{self.section} {self.day} : {self.subject.name}"
+        return f"{self.classroom} {self.day} : {self.subject.name}"

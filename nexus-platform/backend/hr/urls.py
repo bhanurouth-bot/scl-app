@@ -1,10 +1,12 @@
-from django.urls import path
-from .views import EmployeeListCreateAPI, LeaveListCreateAPI, ApproveLeaveAPI, GeneratePayrollAPI, SalaryListAPI
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import EmployeeViewSet, DepartmentViewSet, DesignationViewSet
+
+router = DefaultRouter()
+router.register(r'employees', EmployeeViewSet)
+router.register(r'departments', DepartmentViewSet)
+router.register(r'designations', DesignationViewSet)
 
 urlpatterns = [
-    path('employees/', EmployeeListCreateAPI.as_view()),
-    path('leaves/', LeaveListCreateAPI.as_view()),
-    path('leaves/<int:pk>/status/', ApproveLeaveAPI.as_view()),
-    path('payroll/generate/', GeneratePayrollAPI.as_view()),
-    path('payroll/slips/', SalaryListAPI.as_view()),
+    path('', include(router.urls)),
 ]

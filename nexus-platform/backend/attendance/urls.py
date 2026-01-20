@@ -1,6 +1,10 @@
-from django.urls import path
-from .views import ClassAttendanceAPI
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import AttendanceSessionViewSet
+
+router = DefaultRouter()
+router.register(r'sessions', AttendanceSessionViewSet)
 
 urlpatterns = [
-    path('class/<int:schedule_id>/', ClassAttendanceAPI.as_view()),
+    path('', include(router.urls)),
 ]

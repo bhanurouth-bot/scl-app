@@ -1,9 +1,13 @@
-from django.urls import path
-from .views import ExamListCreateAPI, BulkGradeEntryAPI, StudentPerformanceAPI, GradeRuleListAPI
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import ExamBatchViewSet, ExamViewSet, StudentResultViewSet, GradeScaleViewSet
+
+router = DefaultRouter()
+router.register(r'batches', ExamBatchViewSet)
+router.register(r'papers', ExamViewSet)
+router.register(r'results', StudentResultViewSet)
+router.register(r'gradescales', GradeScaleViewSet)
 
 urlpatterns = [
-    path('', ExamListCreateAPI.as_view()),
-    path('bulk-entry/', BulkGradeEntryAPI.as_view()),
-    path('student/<int:student_id>/', StudentPerformanceAPI.as_view()),
-    path('rules/', GradeRuleListAPI.as_view()), # <--- New Endpoint
+    path('', include(router.urls)),
 ]

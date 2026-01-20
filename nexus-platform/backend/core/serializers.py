@@ -1,22 +1,22 @@
 from rest_framework import serializers
-from django.contrib.auth import get_user_model # <--- NEW IMPORT
-from .models import SchoolSettings
+from .models import User, SchoolSettings, AcademicYear, Classroom
 
-# Get the correct user model (Custom or Default)
-User = get_user_model()
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'first_name', 'last_name', 'email', 'user_type', 'avatar', 'is_staff']
 
 class SchoolSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = SchoolSettings
         fields = '__all__'
 
-class UserSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True)
-
+class AcademicYearSerializer(serializers.ModelSerializer):
     class Meta:
-        model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'is_staff', 'password']
+        model = AcademicYear
+        fields = '__all__'
 
-    def create(self, validated_data):
-        user = User.objects.create_user(**validated_data)
-        return user
+class ClassroomSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Classroom
+        fields = ['id', 'grade_level', 'section', 'academic_year']

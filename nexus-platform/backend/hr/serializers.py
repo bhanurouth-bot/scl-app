@@ -1,58 +1,67 @@
 from rest_framework import serializers
-from .models import Employee, LeaveRequest, SalarySlip
-from django.contrib.auth import get_user_model
+from django.db import transaction
+from core.models import User
+from core.serializers import UserSerializer
+from .models import Employee, Department, Designation
 
-User = get_user_model()
+class DepartmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Department
+        fields = '__all__'
+
+class DesignationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Designation
+        fields = '__all__'
 
 class EmployeeSerializer(serializers.ModelSerializer):
-    # Display Fields (Read Only)
-    name = serializers.CharField(source='user.first_name', read_only=True)
-    email = serializers.CharField(source='user.email', read_only=True)
-    
-    # Input Fields (Write Only - for creating the User account)
-    username = serializers.CharField(write_only=True)
-    password = serializers.CharField(write_only=True)
-    first_name = serializers.CharField(write_only=True)
-    last_name = serializers.CharField(write_only=True)
+    """
+    Read-Only Serializer for displaying employees with full details.
+    """
+    user = UserSerializer(read_only=True)
+    department_details = DepartmentSerializer(source='department', read_only=True)
+    designation_details = DesignationSerializer(source='designation', read_only=True)
     
     class Meta:
         model = Employee
+        fields = '__all__'
+
+class EmployeeRegistrationSerializer(serializers.ModelSerializer):
+    """
+    Write-Only Serializer for creating new employees (User + Employee Profile).
+    """
+    # User Fields
+    first_name = serializers.CharField(write_only=True)
+    last_name = serializers.CharField(write_only=True)
+    email = serializers.EmailField(write_only=True)
+    password = serializers.CharField(write_only=True, required=False, default="Teacher@123")
+    
+    # Employee Fields (Foreign Keys accept IDs)
+    department = serializers.PrimaryKeyRelatedField(queryset=Department.objects.all())
+    designation = serializers.PrimaryKeyRelatedField(queryset=Designation.objects.all())
+
+    class Meta:
+        model = Employee
         fields = [
-            'id', 'user', 'name', 'email', 'designation', 'department', 
-            'join_date', 'basic_salary', 
-            'username', 'password', 'first_name', 'last_name' # <--- Inputs
+            'first_name', 'last_name', 'email', 'password',
+            'employee_id', 'department', 'designation', 
+            'join_date', 'basic_salary'
         ]
-        extra_kwargs = {'user': {'read_only': True}} 
 
     def create(self, validated_data):
         # 1. Extract User Data
-        username = validated_data.pop('username')
-        password = validated_data.pop('password')
-        f_name = validated_data.pop('first_name')
-        l_name = validated_data.pop('last_name')
-        
-        # 2. Create the Login Account (User)
-        user = User.objects.create_user(
-            username=username, 
-            password=password, 
-            first_name=f_name, 
-            last_name=l_name, 
-            is_staff=True # They can login to the system
-        )
-        
-        # 3. Create the Employee Profile linked to that User
-        employee = Employee.objects.create(user=user, **validated_data)
+        user_data = {
+            'username': validated_data['employee_id'],
+            'first_name': validated_data.pop('first_name'),
+            'last_name': validated_data.pop('last_name'),
+            'email': validated_data.pop('email'),
+            'password': validated_data.pop('password'),
+            'user_type': User.UserType.STAFF, # Use STAFF based on your Core model
+        }
+
+        # 2. Atomic Transaction
+        with transaction.atomic():
+            user = User.objects.create_user(**user_data)
+            employee = Employee.objects.create(user=user, **validated_data)
+            
         return employee
-
-class LeaveRequestSerializer(serializers.ModelSerializer):
-    employee_name = serializers.CharField(source='employee.user.first_name', read_only=True)
-    class Meta:
-        model = LeaveRequest
-        fields = '__all__'
-
-class SalarySlipSerializer(serializers.ModelSerializer):
-    employee_name = serializers.CharField(source='employee.user.first_name', read_only=True)
-    designation = serializers.CharField(source='employee.designation', read_only=True)
-    class Meta:
-        model = SalarySlip
-        fields = '__all__'

@@ -1,8 +1,13 @@
-from django.urls import path
-from .views import SchoolSettingsAPI, UserListCreateAPI, UserDeleteAPI
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import UserViewSet, SchoolSettingsViewSet, AcademicYearViewSet, ClassroomViewSet
+
+router = DefaultRouter()
+router.register(r'users', UserViewSet)
+router.register(r'settings', SchoolSettingsViewSet)
+router.register(r'years', AcademicYearViewSet)
+router.register(r'classrooms', ClassroomViewSet)
 
 urlpatterns = [
-    path('settings/', SchoolSettingsAPI.as_view()),
-    path('users/', UserListCreateAPI.as_view()),
-    path('users/<int:pk>/', UserDeleteAPI.as_view()),
+    path('', include(router.urls)),
 ]

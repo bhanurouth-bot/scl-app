@@ -1,13 +1,11 @@
-from django.urls import path
-from .views import (
-    TeacherListCreateAPI, RoomListCreateAPI, SubjectListCreateAPI, 
-    ScheduleListCreateAPI, LiveClassesAPI
-)
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import SubjectViewSet, SubjectAllocationViewSet
+
+router = DefaultRouter()
+router.register(r'subjects', SubjectViewSet)
+router.register(r'allocations', SubjectAllocationViewSet)
 
 urlpatterns = [
-    path('teachers/', TeacherListCreateAPI.as_view()),
-    path('rooms/', RoomListCreateAPI.as_view()),
-    path('subjects/', SubjectListCreateAPI.as_view()),
-    path('schedule/', ScheduleListCreateAPI.as_view()),
-    path('live/', LiveClassesAPI.as_view()), # <--- Dashboard will hit this
+    path('', include(router.urls)),
 ]

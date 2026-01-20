@@ -1,9 +1,21 @@
 from rest_framework import serializers
-from .models import Exam, MarkEntry, GradeRule
+from .models import ExamBatch, Exam, StudentResult, GradeScale, GradeRule
+from students.serializers import StudentSerializer
 
 class GradeRuleSerializer(serializers.ModelSerializer):
     class Meta:
         model = GradeRule
+        fields = '__all__'
+
+class GradeScaleSerializer(serializers.ModelSerializer):
+    rules = GradeRuleSerializer(many=True, read_only=True)
+    class Meta:
+        model = GradeScale
+        fields = '__all__'
+
+class ExamBatchSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ExamBatch
         fields = '__all__'
 
 class ExamSerializer(serializers.ModelSerializer):
@@ -11,20 +23,9 @@ class ExamSerializer(serializers.ModelSerializer):
         model = Exam
         fields = '__all__'
 
-class MarkEntrySerializer(serializers.ModelSerializer):
-    subject_name = serializers.CharField(source='subject.name', read_only=True)
-    subject_code = serializers.CharField(source='subject.code', read_only=True)
-    exam_name = serializers.CharField(source='exam.name', read_only=True)
+class StudentResultSerializer(serializers.ModelSerializer):
+    student_details = StudentSerializer(source='student', read_only=True)
     
-    # New Fields for UI
-    subject_theory_max = serializers.IntegerField(source='subject.total_theory_marks', read_only=True)
-    subject_practical_max = serializers.IntegerField(source='subject.total_practical_marks', read_only=True)
-
     class Meta:
-        model = MarkEntry
-        fields = [
-            'id', 'exam', 'exam_name', 'student', 'subject', 
-            'subject_name', 'subject_code', 
-            'theory_score', 'practical_score', 'total_score', 'is_pass',
-            'subject_theory_max', 'subject_practical_max'
-        ]
+        model = StudentResult
+        fields = '__all__'

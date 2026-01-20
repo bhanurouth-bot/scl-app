@@ -1,7 +1,13 @@
-from django.urls import path
-from .views import CollectFeeAPI, DashboardStatsAPI
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import FeeHeadViewSet, FeeStructureViewSet, InvoiceViewSet, TransactionViewSet
+
+router = DefaultRouter()
+router.register(r'fee-heads', FeeHeadViewSet)
+router.register(r'fee-structures', FeeStructureViewSet)
+router.register(r'invoices', InvoiceViewSet)
+router.register(r'transactions', TransactionViewSet)
 
 urlpatterns = [
-    path('collect/', CollectFeeAPI.as_view(), name='collect-fee'),
-    path('stats/', DashboardStatsAPI.as_view(), name='dashboard-stats'), # <--- ADD THIS
+    path('', include(router.urls)),
 ]

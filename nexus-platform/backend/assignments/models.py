@@ -1,34 +1,38 @@
 from django.db import models
-from students.models import Student
+from core.models import Classroom
 from academics.models import Subject
-from django.conf import settings
+from django.conf import settings # Links to User (Teacher)
 
 class Assignment(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField()
+    
+    # Who is this for? (Replaces old 'grade'/'section' strings)
+    classroom = models.ForeignKey(Classroom, on_delete=models.CASCADE, related_name='assignments')
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
+    
+    # Who assigned it?
     teacher = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     
-    # CHANGED: Increased length to allow "10,11,12" or "A,B,C"
-    grade = models.CharField(max_length=50, default="10") 
-    section = models.CharField(max_length=50, default="A")
-    
-    due_date = models.DateField()
+    due_date = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.title} - {self.grade}{self.section}"
+        return f"{self.title} - {self.classroom}"
 
 class Submission(models.Model):
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE, related_name='submissions')
-    student = models.ForeignKey(Student, on_delete=models.CASCADE)
-    content = models.TextField(help_text="Link to Google Doc or text answer")
+    student = models.ForeignKey('students.Student', on_delete=models.CASCADE)
+    
+    # For now, we store a link. Later use models.FileField
+    file_link = models.URLField(blank=True, max_length=500)
+    
     submitted_at = models.DateTimeField(auto_now_add=True)
-    grade = models.CharField(max_length=5, blank=True, null=True)
-    feedback = models.TextField(blank=True, null=True)
+    grade = models.CharField(max_length=5, blank=True) # e.g. "A", "80/100"
+    feedback = models.TextField(blank=True)
 
     class Meta:
         unique_together = ('assignment', 'student')
 
     def __str__(self):
-        return f"{self.student} -> {self.assignment}"
+        return f"{self.student.first_name} - {self.assignment.title}"

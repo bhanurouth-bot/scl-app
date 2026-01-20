@@ -1,23 +1,45 @@
 from django.db import models
-from core.models import User  # Assuming we link to a user later
+from django.conf import settings
+from core.models import Classroom, AcademicYear
 
 class Student(models.Model):
-    # Basic Info
-    first_name = models.CharField(max_length=100)
-    last_name = models.CharField(max_length=100)
-    student_id = models.CharField(max_length=20, unique=True) # e.g., "STD-2026-001"
+    """
+    The Student Profile.
+    """
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE, 
+        related_name='student_profile'
+    )
+
+    # Academic Identity
+    student_id = models.CharField(max_length=20, unique=True, help_text="Admission Number (e.g. ADM-2025-001)")
+    roll_number = models.PositiveIntegerField()
     
-    # Academic Info
-    grade = models.CharField(max_length=10) # e.g., "10th"
-    section = models.CharField(max_length=5) # e.g., "A"
-    roll_number = models.IntegerField()
+    # Classroom Mapping
+    classroom = models.ForeignKey(
+        Classroom, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        related_name="students"
+    )
     
-    # Financial Status (The "Selling Point" feature)
-    fees_due = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    admission_year = models.ForeignKey(AcademicYear, on_delete=models.SET_NULL, null=True)
+
+    # Personal Details (Specific to students)
+    date_of_birth = models.DateField()
+    gender = models.CharField(max_length=1, choices=[('M', 'Male'), ('F', 'Female'), ('O', 'Other')])
+    blood_group = models.CharField(max_length=5, blank=True, null=True)
     
-    # Meta
+    # Guardian Info
+    guardian_name = models.CharField(max_length=255)
+    guardian_phone = models.CharField(max_length=20)
+    
     created_at = models.DateTimeField(auto_now_add=True)
-    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['classroom', 'roll_number']
+        unique_together = ['classroom', 'roll_number'] 
 
     def __str__(self):
-        return f"{self.first_name} {self.last_name} ({self.student_id})"
+        return f"{self.user.get_full_name()} ({self.student_id})"

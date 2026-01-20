@@ -1,57 +1,70 @@
-from rest_framework.views import APIView
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework import status
-from django.utils import timezone
+from django.db import transaction
+from .models import AttendanceSession, AttendanceRecord
+from .serializers import AttendanceSessionSerializer, AttendanceBulkUpdateSerializer
+from core.models import Classroom
 from students.models import Student
-from academics.models import ScheduleItem
-from .models import AttendanceLog
-from .serializers import AttendanceSerializer
 
-class ClassAttendanceAPI(APIView):
-    def get(self, request, schedule_id):
-        # 1. Get the Schedule details (to find which Class/Section it is)
-        try:
-            schedule = ScheduleItem.objects.get(id=schedule_id)
-        except ScheduleItem.DoesNotExist:
-            return Response({"error": "Class not found"}, status=404)
+class AttendanceSessionViewSet(viewsets.ModelViewSet):
+    queryset = AttendanceSession.objects.all().order_by('-date')
+    serializer_class = AttendanceSessionSerializer
 
-        target_date = request.query_params.get('date', timezone.now().date())
-
-        # 2. Get ALL Students in that Grade/Section
-        students = Student.objects.filter(grade=schedule.grade, section=schedule.section, is_active=True)
-
-        # 3. Get existing attendance records for this date
-        logs = AttendanceLog.objects.filter(schedule=schedule, date=target_date)
-        log_map = {log.student_id: log.status for log in logs}
-
-        # 4. Build the Response (Merge Students + Status)
-        data = []
-        for student in students:
-            data.append({
-                "student_id": student.id,
-                "name": f"{student.first_name} {student.last_name}",
-                "roll_number": student.roll_number,
-                "status": log_map.get(student.id, "PRESENT") # Default to Present
-            })
-            
-        return Response(data)
-
-    def post(self, request, schedule_id):
-        # Expects: { date: "2025-01-20", records: [{student_id: 1, status: "ABSENT"}, ...] }
-        date = request.data.get('date', timezone.now().date())
-        records = request.data.get('records', [])
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        classroom = self.request.query_params.get('classroom')
+        date = self.request.query_params.get('date')
         
-        schedule = ScheduleItem.objects.get(id=schedule_id)
+        if classroom:
+            queryset = queryset.filter(classroom_id=classroom)
+        if date:
+            queryset = queryset.filter(date=date)
+            
+        return queryset
 
-        created_logs = []
-        for item in records:
-            # Update or Create logic
-            log, created = AttendanceLog.objects.update_or_create(
-                schedule=schedule,
-                student_id=item['student_id'],
-                date=date,
-                defaults={'status': item['status']}
-            )
-            created_logs.append(log)
+    @action(detail=False, methods=['post'])
+    def mark_bulk(self, request):
+        """
+        Custom Endpoint to mark attendance for a whole class at once.
+        """
+        serializer = AttendanceBulkUpdateSerializer(data=request.data)
+        if serializer.is_valid():
+            data = serializer.validated_data
+            classroom_id = data['classroom']
+            date = data['date']
+            session_type = data['session_type']
+            records = data['records']
 
-        return Response({"message": "Attendance Saved", "count": len(created_logs)})
+            # 1. Find or Create the Session
+            with transaction.atomic():
+                session, created = AttendanceSession.objects.get_or_create(
+                    classroom_id=classroom_id,
+                    date=date,
+                    session_type=session_type,
+                    defaults={'taken_by': None} # You can link to request.user.employee if available
+                )
+
+                # 2. Update each Student Record
+                updated_count = 0
+                for record in records:
+                    student_id = record.get('student_id')
+                    status_val = record.get('status', 'PRESENT')
+                    remarks = record.get('remarks', '')
+
+                    AttendanceRecord.objects.update_or_create(
+                        session=session,
+                        student_id=student_id,
+                        defaults={
+                            'status': status_val,
+                            'remarks': remarks
+                        }
+                    )
+                    updated_count += 1
+
+            return Response({
+                "message": f"Attendance marked for {updated_count} students.",
+                "session_id": session.id
+            }, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
