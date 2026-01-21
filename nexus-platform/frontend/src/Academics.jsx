@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { BookOpen, Users, Plus, GraduationCap, Sparkles, Layers, Book } from 'lucide-react';
+import { BookOpen, Users, Plus, GraduationCap, Sparkles, Layers, Book, FileText } from 'lucide-react'; // Added FileText
 import api from './api';
 import Dock from './Dock';
 import AddClassroom from './AddClassroom';
@@ -70,7 +70,18 @@ const Academics = () => {
                 <span className="font-semibold hidden md:inline">Global Subjects</span>
             </motion.button>
 
-            {/* 2. New Class Button */}
+            {/* 2. Exams & Grading Button (NEW) */}
+            <motion.button 
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => navigate('/exams')}
+                className="bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white px-6 py-4 rounded-2xl flex items-center gap-2 border border-white/10 transition-colors backdrop-blur-md"
+            >
+                <FileText size={18} />
+                <span className="font-semibold hidden md:inline">Exams & Results</span>
+            </motion.button>
+
+            {/* 3. New Class Button */}
             <motion.button 
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}

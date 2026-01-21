@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db import transaction
 from .models import AttendanceSession, AttendanceRecord
-from .serializers import AttendanceSessionSerializer, AttendanceBulkUpdateSerializer
+from .serializers import AttendanceSessionSerializer, AttendanceBulkUpdateSerializer, AttendanceRecordSerializer
 from core.models import Classroom
 from students.models import Student
 
@@ -68,3 +68,14 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+class StudentAttendanceViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = AttendanceRecordSerializer
+    queryset = AttendanceRecord.objects.all().order_by('-session__date')
+
+    def get_queryset(self):
+        student_id = self.request.query_params.get('student')
+        if student_id:
+            return self.queryset.filter(student_id=student_id)
+        return self.queryset.none() # Safety: Don't show all if no ID provided

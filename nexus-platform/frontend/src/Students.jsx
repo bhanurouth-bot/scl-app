@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom'; // <--- 1. Import Hook
 import api from './api';
 import Dock from './Dock';
 import StudentCard from './StudentCard';
 import AddStudent from './AddStudent';
-import StudentDetail from './StudentDetail';
+// Removed: import StudentDetail (We don't render it here anymore)
 
 const Students = () => {
+  const navigate = useNavigate(); // <--- 2. Initialize Hook
+  
   // --- State Management ---
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -15,7 +18,7 @@ const Students = () => {
   
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState(null); // If not null, Detail Modal is open
+  // Removed: const [selectedStudent, setSelectedStudent] ... (Not needed for page navigation)
 
   // --- Data Fetching ---
   const fetchStudents = async () => {
@@ -100,7 +103,9 @@ const Students = () => {
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
-                  onClick={() => setSelectedStudent(student)} // Open Detail View
+                  // 3. FIXED: Navigate to the Profile Page
+                  onClick={() => navigate(`/students/${student.id}`)}
+                  className="cursor-pointer"
                 >
                   <StudentCard student={student} index={index} />
                 </motion.div>
@@ -133,16 +138,7 @@ const Students = () => {
         }} 
       />
 
-      {/* 2. Student Detail / Edit Inspector */}
-      <StudentDetail 
-        isOpen={!!selectedStudent} 
-        student={selectedStudent} 
-        onClose={() => setSelectedStudent(null)}
-        onUpdate={() => {
-          fetchStudents(); // Refresh grid after editing/deleting
-          setSelectedStudent(null); // Close modal
-        }}
-      />
+      {/* REMOVED: StudentDetail component (It is now a separate page) */}
 
     </div>
   );

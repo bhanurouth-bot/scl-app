@@ -19,6 +19,9 @@ class ExamBatchSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class ExamSerializer(serializers.ModelSerializer):
+    classroom_name = serializers.CharField(source='classroom.__str__', read_only=True)
+    subject_name = serializers.CharField(source='subject.name', read_only=True)
+    
     class Meta:
         model = Exam
         fields = '__all__'
@@ -29,3 +32,10 @@ class StudentResultSerializer(serializers.ModelSerializer):
     class Meta:
         model = StudentResult
         fields = '__all__'
+
+class BulkExamMarksSerializer(serializers.Serializer):
+    """
+    Accepts: { "exam_id": 1, "marks": [ { "student_id": 101, "score": 85, "is_absent": false } ] }
+    """
+    exam_id = serializers.IntegerField()
+    marks = serializers.ListField(child=serializers.DictField())

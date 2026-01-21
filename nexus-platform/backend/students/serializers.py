@@ -22,7 +22,7 @@ class StudentRegistrationSerializer(serializers.ModelSerializer):
     # User Fields
     first_name = serializers.CharField(write_only=True)
     last_name = serializers.CharField(write_only=True)
-    email = serializers.EmailField(write_only=True, required=False)
+    email = serializers.EmailField(write_only=True, required=False, allow_blank=True)
     password = serializers.CharField(write_only=True, style={'input_type': 'password'})
     
     class Meta:
@@ -40,7 +40,7 @@ class StudentRegistrationSerializer(serializers.ModelSerializer):
             'username': validated_data['student_id'], # Username is Student ID
             'first_name': validated_data.pop('first_name'),
             'last_name': validated_data.pop('last_name'),
-            'email': validated_data.get('email', ''),
+            'email': validated_data.pop('email', ''), # <--- FIXED: .pop() removes it from validated_data
             'password': validated_data.pop('password'),
             'user_type': User.UserType.STUDENT,
         }
@@ -51,6 +51,7 @@ class StudentRegistrationSerializer(serializers.ModelSerializer):
             user = User.objects.create_user(**user_data)
             
             # Create Student Profile
+            # validated_data is now clean (contains only Student fields)
             student = Student.objects.create(user=user, **validated_data)
             
         return student

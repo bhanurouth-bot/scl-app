@@ -8,9 +8,9 @@ from hr.models import Employee
 class GradeScale(models.Model):
     """
     Defines the grading logic. 
-    e.g. "Standard GPA", "IGCSE Grades", "Kindergarten Stars".
+    e.g. "Standard GPA", "IGCSE Grades".
     """
-    name = models.CharField(max_length=50, unique=True) # e.g. "Standard 4.0 Scale"
+    name = models.CharField(max_length=50, unique=True)
     
     def __str__(self):
         return self.name
@@ -18,32 +18,29 @@ class GradeScale(models.Model):
 class GradeRule(models.Model):
     """
     The logic rules for a scale.
-    e.g. 
-    - 90-100 = A+ (4.0)
-    - 80-89  = A  (3.7)
+    e.g. 90-100 = A+
     """
     grade_scale = models.ForeignKey(GradeScale, on_delete=models.CASCADE, related_name='rules')
     min_score = models.DecimalField(max_digits=5, decimal_places=2)
     max_score = models.DecimalField(max_digits=5, decimal_places=2)
-    grade_label = models.CharField(max_length=5, help_text="A, B, C, etc.")
-    grade_point = models.DecimalField(max_digits=4, decimal_places=2, help_text="4.0, 3.7 etc.")
+    grade_label = models.CharField(max_length=5)
+    grade_point = models.DecimalField(max_digits=4, decimal_places=2)
     
     class Meta:
-        ordering = ['-min_score'] # Highest grades first
+        ordering = ['-min_score']
 
     def __str__(self):
         return f"{self.grade_label} ({self.min_score}-{self.max_score})"
 
 class ExamBatch(models.Model):
     """
-    Represents the Major Exam Event.
-    e.g., "Final Exams 2026", "Unit Test 1".
+    Represents the Major Exam Event. e.g., "Final Exams 2026".
     """
-    name = models.CharField(max_length=100) # "Finals 2026"
+    name = models.CharField(max_length=100)
     academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE)
     start_date = models.DateField()
     end_date = models.DateField()
-    is_published = models.BooleanField(default=False, help_text="If True, results are visible to parents")
+    is_published = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.name} ({self.academic_year})"
@@ -64,7 +61,6 @@ class Exam(models.Model):
     total_marks = models.DecimalField(max_digits=5, decimal_places=2, default=100.00)
     passing_marks = models.DecimalField(max_digits=5, decimal_places=2, default=40.00)
     
-    # Audit: Who created this exam paper?
     created_by = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True)
 
     class Meta:
@@ -80,24 +76,40 @@ class StudentResult(models.Model):
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='results')
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='exam_results')
     
-    # Marks
-    marks_obtained = models.DecimalField(max_digits=5, decimal_places=2)
+    marks_obtained = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
     is_absent = models.BooleanField(default=False)
     
-    # Calculated automatically based on GradeScale
     grade = models.CharField(max_length=5, blank=True, null=True) 
     remarks = models.CharField(max_length=255, blank=True)
 
     def clean(self):
         if self.marks_obtained > self.exam.total_marks:
-            raise ValidationError(f"Marks ({self.marks_obtained}) cannot exceed Total Marks ({self.exam.total_marks})")
+            raise ValidationError(f"Marks ({self.marks_obtained}) cannot exceed Total ({self.exam.total_marks})")
 
     def save(self, *args, **kwargs):
         self.clean()
+        
+        # --- AUTO GRADING LOGIC ---
+        if self.is_absent:
+            self.grade = 'ABS'
+            self.marks_obtained = 0
+        else:
+            # Calculate Percentage
+            if self.exam.total_marks > 0:
+                percentage = (float(self.marks_obtained) / float(self.exam.total_marks)) * 100
+                
+                # Find matching GradeRule (Scanning all rules for now)
+                # In a real app, you'd link GradeScale to the ExamBatch to narrow this down
+                rules = GradeRule.objects.all()
+                for rule in rules:
+                    if float(rule.min_score) <= percentage <= float(rule.max_score):
+                        self.grade = rule.grade_label
+                        break
+        
         super().save(*args, **kwargs)
 
     class Meta:
         unique_together = ['exam', 'student']
 
     def __str__(self):
-        return f"{self.student} - {self.marks_obtained}/{self.exam.total_marks}"
+        return f"{self.student} - {self.marks_obtained}"

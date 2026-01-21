@@ -1,17 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { CreditCard, DollarSign, TrendingUp, AlertCircle, Plus, CheckCircle, FileText, Layers } from 'lucide-react';
 import api from './api';
 import Dock from './Dock';
+import BulkInvoiceModal from './BulkInvoiceModal';
+import PaymentModal from './PaymentModal';
 
 const Finance = () => {
   const navigate = useNavigate();
+  
+  // --- State ---
   const [stats, setStats] = useState({ total_revenue: 0, collected: 0, pending: 0 });
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Modal States
+  const [isBulkOpen, setIsBulkOpen] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState(null); // For Payment Modal
 
-  // --- Data Fetching ---
+  // --- Fetch Data ---
   const fetchData = async () => {
     try {
       const [statRes, invRes] = await Promise.all([
@@ -29,7 +37,7 @@ const Finance = () => {
 
   useEffect(() => { fetchData(); }, []);
 
-  // --- Currency Formatter ---
+  // --- Helpers ---
   const fmt = (amt) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amt || 0);
 
   return (
@@ -76,7 +84,7 @@ const Finance = () => {
             <motion.button 
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => alert("Bulk Invoice Generator: Coming in next update!")} 
+                onClick={() => setIsBulkOpen(true)}
                 className="bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-black font-bold px-8 py-4 rounded-[2rem] flex items-center gap-2 shadow-[0_0_40px_rgba(234,179,8,0.3)] transition-all"
             >
                 <Plus size={20} /> New Invoice
@@ -171,7 +179,10 @@ const Finance = () => {
                      animate={{ opacity: 1, y: 0 }}
                      transition={{ delay: idx * 0.05 }}
                      whileHover={{ scale: 1.01, backgroundColor: "rgba(255,255,255,0.08)" }}
-                     className="glass-panel p-6 rounded-[2rem] border border-white/5 bg-white/5 transition-all flex flex-col md:flex-row items-start md:items-center justify-between group cursor-pointer"
+                     onClick={() => {
+                        if (inv.status !== 'PAID') setSelectedInvoice(inv);
+                     }}
+                     className={`glass-panel p-6 rounded-[2rem] border border-white/5 bg-white/5 transition-all flex flex-col md:flex-row items-start md:items-center justify-between group ${inv.status !== 'PAID' ? 'cursor-pointer hover:border-yellow-500/30' : ''}`}
                    >
                       <div className="flex items-center gap-5 w-full md:w-auto">
                          {/* Status Icon */}
@@ -221,6 +232,21 @@ const Finance = () => {
       </div>
 
       <Dock />
+
+      {/* --- MODALS --- */}
+      <BulkInvoiceModal 
+        isOpen={isBulkOpen} 
+        onClose={() => setIsBulkOpen(false)}
+        onSuccess={fetchData} 
+      />
+
+      <PaymentModal
+        invoice={selectedInvoice}
+        isOpen={!!selectedInvoice}
+        onClose={() => setSelectedInvoice(null)}
+        onSuccess={fetchData}
+      />
+
     </div>
   );
 };

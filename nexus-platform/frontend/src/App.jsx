@@ -9,40 +9,36 @@ import PrivateRoute from './PrivateRoute';
 // --- Modules ---
 import Dashboard from './Dashboard';
 import Students from './Students';
+import StudentDetail from './StudentDetail'; // <--- Ensure this is imported
 
 // Academics
 import Academics from './Academics';
-import ClassroomDetail from './ClassroomDetail'; // The Cockpit
-import Subjects from './Subjects'; // Global Subject Manager
+import ClassroomDetail from './ClassroomDetail';
+import Subjects from './Subjects'; 
 
 // HR & Staff
 import Employees from './Employees';
 
 // Finance
 import Finance from './Finance';
+import FeeStructures from './FeeStructures';
+import FeeHeads from './FeeHeads';
 
 // Scheduling
 import Timetable from './Timetable';
-
-// --- Navigation ---
-import Dock from './Dock';
-import FeeStructures from './FeeStructures';
-import FeeHeads from './FeeHeads';
+import Exams from './Exams';        // <--- Add if missing
+import ExamDetail from './ExamDetail'; // <--- Add if missing
 import Attendance from './Attendance';
 
+import Dock from './Dock';
 
-
-// Placeholder for Notices (Coming Soon)
 const Notices = () => (
   <div className="min-h-screen bg-[#050505] text-white flex flex-col items-center justify-center">
     <h1 className="text-4xl font-bold text-gray-500 mb-4">Notices</h1>
-    <p className="text-gray-600">Communication module under construction.</p>
     <Dock />
   </div>
 );
 
-// --- Layout Wrapper ---
-// This ensures the Dock is visible on every authenticated page
 const AppLayout = ({ children }) => {
   return (
     <>
@@ -57,76 +53,43 @@ const App = () => {
     <Router>
       <AnimatePresence mode="wait">
         <Routes>
-          {/* Public Route */}
           <Route path="/" element={<Login />} />
 
-          {/* --- PROTECTED ROUTES --- */}
+          {/* --- DASHBOARD --- */}
+          <Route path="/dashboard" element={<PrivateRoute><AppLayout><Dashboard /></AppLayout></PrivateRoute>} />
+
+          {/* --- STUDENTS MODULE --- */}
+          <Route path="/students" element={<PrivateRoute><AppLayout><Students /></AppLayout></PrivateRoute>} />
           
-          {/* Dashboard */}
-          <Route path="/dashboard" element={
-            <PrivateRoute>
-              <AppLayout><Dashboard /></AppLayout>
-            </PrivateRoute>
-          } />
+          {/* NEW: Student Profile Route */}
+          <Route path="/students/:id" element={<PrivateRoute><AppLayout><StudentDetail /></AppLayout></PrivateRoute>} />
 
-          {/* Student Directory */}
-          <Route path="/students" element={
-            <PrivateRoute>
-              <AppLayout><Students /></AppLayout>
-            </PrivateRoute>
-          } />
+          {/* --- ACADEMICS MODULE --- */}
+          <Route path="/academics" element={<PrivateRoute><AppLayout><Academics /></AppLayout></PrivateRoute>} />
+          <Route path="/academics/:id" element={<PrivateRoute><AppLayout><ClassroomDetail /></AppLayout></PrivateRoute>} />
+          <Route path="/subjects" element={<PrivateRoute><AppLayout><Subjects /></AppLayout></PrivateRoute>} />
 
-          {/* Academics Module */}
-          <Route path="/academics" element={
-            <PrivateRoute>
-              <AppLayout><Academics /></AppLayout>
-            </PrivateRoute>
-          } />
-          <Route path="/academics/:id" element={ // The Classroom Cockpit
-            <PrivateRoute>
-              <AppLayout><ClassroomDetail /></AppLayout>
-            </PrivateRoute>
-          } />
-          <Route path="/subjects" element={ // Global Subject Manager
-            <PrivateRoute>
-              <AppLayout><Subjects /></AppLayout>
-            </PrivateRoute>
-          } />
+          {/* --- EXAMS MODULE --- */}
+          <Route path="/exams" element={<PrivateRoute><AppLayout><Exams /></AppLayout></PrivateRoute>} />
+          <Route path="/exams/:id" element={<PrivateRoute><AppLayout><ExamDetail /></AppLayout></PrivateRoute>} />
 
-          {/* HR / Staff Module */}
-          <Route path="/employees" element={
-            <PrivateRoute>
-              <AppLayout><Employees /></AppLayout>
-            </PrivateRoute>
-          } />
-
-          {/* Finance Module */}
-          <Route path="/finance" element={
-            <PrivateRoute>
-              <AppLayout><Finance /></AppLayout>
-            </PrivateRoute>
-          } />
-
-          {/* Timetable Module */}
-          <Route path="/timetable" element={
-            <PrivateRoute>
-              <AppLayout><Timetable /></AppLayout>
-            </PrivateRoute>
-          } />
-
-          {/* Notices */}
-          <Route path="/notices" element={
-            <PrivateRoute>
-              <AppLayout><Notices /></AppLayout>
-            </PrivateRoute>
-          } />
-
-          {/* Fallback - Redirect unknown routes to Dashboard or Login */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-          <Route path="/finance/structures" element={<PrivateRoute><AppLayout><FeeStructures /></AppLayout></PrivateRoute>} />
-          <Route path="/finance/heads" element={<PrivateRoute><AppLayout><FeeHeads /></AppLayout></PrivateRoute>} />
+          {/* --- ATTENDANCE MODULE --- */}
           <Route path="/attendance" element={<PrivateRoute><AppLayout><Attendance /></AppLayout></PrivateRoute>} />
 
+          {/* --- HR MODULE --- */}
+          <Route path="/employees" element={<PrivateRoute><AppLayout><Employees /></AppLayout></PrivateRoute>} />
+
+          {/* --- FINANCE MODULE --- */}
+          <Route path="/finance" element={<PrivateRoute><AppLayout><Finance /></AppLayout></PrivateRoute>} />
+          <Route path="/finance/structures" element={<PrivateRoute><AppLayout><FeeStructures /></AppLayout></PrivateRoute>} />
+          <Route path="/finance/heads" element={<PrivateRoute><AppLayout><FeeHeads /></AppLayout></PrivateRoute>} />
+
+          {/* --- TIMETABLE --- */}
+          <Route path="/timetable" element={<PrivateRoute><AppLayout><Timetable /></AppLayout></PrivateRoute>} />
+
+          <Route path="/notices" element={<PrivateRoute><AppLayout><Notices /></AppLayout></PrivateRoute>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+          
         </Routes>
       </AnimatePresence>
     </Router>

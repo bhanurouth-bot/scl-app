@@ -2,11 +2,11 @@ from django.db import models
 from django.utils import timezone
 from core.models import AcademicYear, Classroom
 from students.models import Student
+from decimal import Decimal  # <--- IMPORT THIS
 
 class FeeHead(models.Model):
     """
     Master Data for Fee Types.
-    e.g., "Tuition Fee", "Transport Fee", "Library Fine", "Exam Fee".
     """
     name = models.CharField(max_length=100, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -17,7 +17,6 @@ class FeeHead(models.Model):
 class FeeStructure(models.Model):
     """
     Defines how much a specific Class pays for a specific Fee Head.
-    e.g., "Grade 10 pays $500 for Tuition in 2025-2026".
     """
     academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE)
     classroom = models.ForeignKey(Classroom, on_delete=models.CASCADE, help_text="Apply this fee to this specific class")
@@ -34,7 +33,6 @@ class FeeStructure(models.Model):
 class Invoice(models.Model):
     """
     The Bill generated for a Student.
-    It links to multiple Fee Items (Line Items).
     """
     STATUS_CHOICES = [
         ('UNPAID', 'Unpaid'),
@@ -50,25 +48,29 @@ class Invoice(models.Model):
     issue_date = models.DateField(default=timezone.now)
     due_date = models.DateField()
     
-    # Financial Snapshots (Denormalized for performance)
-    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
-    paid_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
-    balance_due = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    # FIX: Use Decimal(0) for defaults, or simply 0 (int) which converts safely
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    paid_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    balance_due = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='UNPAID')
 
     def save(self, *args, **kwargs):
-        # Auto-generate Invoice Number: INV-YYYY-STUDENTID-ID
+        # Auto-generate Invoice Number
         if not self.invoice_number:
-            # Logic to generate unique ID can be more complex in production
             import uuid
             self.invoice_number = f"INV-{uuid.uuid4().hex[:8].upper()}"
         
+        # Ensure values are Decimals before math
+        self.total_amount = Decimal(str(self.total_amount))
+        self.paid_amount = Decimal(str(self.paid_amount))
+
         # Calculate status
         self.balance_due = self.total_amount - self.paid_amount
+        
         if self.balance_due <= 0:
             self.status = 'PAID'
-            self.balance_due = 0 # Prevent negative balance
+            self.balance_due = Decimal('0.00')
         elif self.paid_amount > 0:
             self.status = 'PARTIAL'
         else:
@@ -82,9 +84,6 @@ class Invoice(models.Model):
 class InvoiceItem(models.Model):
     """
     Line items for the Invoice.
-    e.g. 
-    1. Tuition Fee - $500
-    2. Bus Fee - $100
     """
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='items')
     fee_head = models.ForeignKey(FeeHead, on_delete=models.PROTECT)
@@ -124,7 +123,8 @@ class Transaction(models.Model):
 
     def update_invoice(self):
         # Recalculate invoice totals
-        total_paid = sum(t.amount for t in self.invoice.transactions.all())
+        # Use Decimal for the sum start value to avoid int/float issues
+        total_paid = sum((t.amount for t in self.invoice.transactions.all()), Decimal('0.00'))
         self.invoice.paid_amount = total_paid
         self.invoice.save()
 

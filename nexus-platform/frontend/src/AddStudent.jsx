@@ -94,26 +94,34 @@ const AddStudent = ({ isOpen, onClose, onSuccess }) => {
               <form id="add-student-form" onSubmit={handleSubmit} className="space-y-8">
                 
                 {/* Section 1: Identity */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-blue-400 mb-2">
-                    <User size={18} />
-                    <span className="text-sm font-bold uppercase tracking-wider">Identity</span>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-blue-400 mb-2">
+                      <User size={18} />
+                      <span className="text-sm font-bold uppercase tracking-wider">Identity</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="col-span-1">
+                        <label className="block text-xs text-gray-400 mb-1">First Name</label>
+                        <input name="first_name" required onChange={handleChange} className="glass-input w-full p-3 rounded-xl text-white" placeholder="John" />
+                      </div>
+                      <div className="col-span-1">
+                        <label className="block text-xs text-gray-400 mb-1">Last Name</label>
+                        <input name="last_name" required onChange={handleChange} className="glass-input w-full p-3 rounded-xl text-white" placeholder="Doe" />
+                      </div>
+
+                      {/* --- NEW EMAIL INPUT --- */}
+                      <div className="col-span-2">
+                        <label className="block text-xs text-gray-400 mb-1">Email Address (Optional)</label>
+                        <input name="email" type="email" onChange={handleChange} className="glass-input w-full p-3 rounded-xl text-white" placeholder="student@example.com" />
+                      </div>
+
+                      <div className="col-span-2">
+                        <label className="block text-xs text-gray-400 mb-1">Generated Password</label>
+                        <input name="password" value={formData.password} readOnly className="glass-input w-full p-3 rounded-xl text-gray-400 cursor-not-allowed bg-black/20" />
+                      </div>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-1">
-                      <label className="block text-xs text-gray-400 mb-1">First Name</label>
-                      <input name="first_name" required onChange={handleChange} className="glass-input w-full p-3 rounded-xl text-white" placeholder="John" />
-                    </div>
-                    <div className="col-span-1">
-                      <label className="block text-xs text-gray-400 mb-1">Last Name</label>
-                      <input name="last_name" required onChange={handleChange} className="glass-input w-full p-3 rounded-xl text-white" placeholder="Doe" />
-                    </div>
-                    <div className="col-span-2">
-                      <label className="block text-xs text-gray-400 mb-1">Generated Password</label>
-                      <input name="password" value={formData.password} readOnly className="glass-input w-full p-3 rounded-xl text-gray-400 cursor-not-allowed bg-black/20" />
-                    </div>
-                  </div>
-                </div>
 
                 {/* Section 2: Academic */}
                 <div className="space-y-4">
