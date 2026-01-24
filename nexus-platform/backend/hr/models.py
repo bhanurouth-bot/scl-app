@@ -23,9 +23,15 @@ class Designation(models.Model):
 class Employee(models.Model):
     """
     The Employee Profile.
-    Personal info lives in core.User.
-    Professional info lives here.
     """
+    # Roles for logic (e.g., Drivers show in Transport, Teachers in Academics)
+    ROLE_CHOICES = [
+        ('TEACHER', 'Teacher'),
+        ('DRIVER', 'Driver'),
+        ('STAFF', 'Staff'),
+        ('ADMIN', 'Admin'),
+    ]
+
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL, 
         on_delete=models.CASCADE, 
@@ -36,17 +42,20 @@ class Employee(models.Model):
     
     # Professional Details
     department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, related_name='employees')
-    signature = models.ImageField(upload_to='signatures/staff/', blank=True, null=True)
     designation = models.ForeignKey(Designation, on_delete=models.SET_NULL, null=True, related_name='employees')
+    
+    # --- NEW FIELDS ---
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='STAFF')
+    # Only relevant if role == 'TEACHER'
+    subjects = models.ManyToManyField('academics.Subject', blank=True, related_name='teachers')
     
     join_date = models.DateField()
     basic_salary = models.DecimalField(max_digits=12, decimal_places=2, help_text="Base Monthly Salary")
+    signature = models.ImageField(upload_to='signatures/staff/', blank=True, null=True)
     
-    # Status
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
-        # Access name from the related User model
         return f"{self.user.get_full_name()} ({self.employee_id})"
 
 class LeaveRequest(models.Model):

@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CreditCard, DollarSign, TrendingUp, AlertCircle, Plus, CheckCircle, FileText, Layers } from 'lucide-react';
+import { 
+  CreditCard, DollarSign, TrendingUp, AlertCircle, 
+  Plus, CheckCircle, FileText, Layers, Download 
+} from 'lucide-react';
 import api from './api';
 import Dock from './Dock';
 import BulkInvoiceModal from './BulkInvoiceModal';
@@ -17,7 +20,7 @@ const Finance = () => {
   
   // Modal States
   const [isBulkOpen, setIsBulkOpen] = useState(false);
-  const [selectedInvoice, setSelectedInvoice] = useState(null); // For Payment Modal
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
 
   // --- Fetch Data ---
   const fetchData = async () => {
@@ -94,60 +97,24 @@ const Finance = () => {
 
       {/* --- STATS CARDS --- */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 relative z-10">
-        
-        {/* Card 1: Total Revenue */}
-        <motion.div 
-            initial={{ y: 20, opacity: 0 }} 
-            animate={{ y: 0, opacity: 1 }} 
-            className="glass-panel p-8 rounded-[2.5rem] bg-gradient-to-br from-white/10 to-transparent border border-white/10 relative overflow-hidden group"
-        >
-           <div className="absolute top-0 right-0 p-8 opacity-20 group-hover:scale-110 transition-transform"><DollarSign size={100} /></div>
-           
+        <motion.div className="glass-panel p-8 rounded-[2.5rem] bg-gradient-to-br from-white/10 to-transparent border border-white/10 relative overflow-hidden group">
            <div className="relative z-10">
                <p className="text-gray-400 text-sm font-bold uppercase tracking-wider mb-2">Total Invoiced</p>
                <h2 className="text-5xl font-bold text-white tracking-tight">{fmt(stats.total_revenue)}</h2>
            </div>
-           
-           <div className="mt-6 h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-              <div className="h-full bg-white w-full"></div>
-           </div>
         </motion.div>
-
-        {/* Card 2: Collected */}
-        <motion.div 
-            initial={{ y: 20, opacity: 0 }} 
-            animate={{ y: 0, opacity: 1 }} 
-            transition={{ delay: 0.1 }} 
-            className="glass-panel p-8 rounded-[2.5rem] bg-gradient-to-br from-green-500/20 to-transparent border border-green-500/20 relative overflow-hidden group"
-        >
-           <div className="absolute top-0 right-0 p-8 opacity-20 text-green-400 group-hover:scale-110 transition-transform"><TrendingUp size={100} /></div>
-
+        
+        <motion.div className="glass-panel p-8 rounded-[2.5rem] bg-gradient-to-br from-green-500/20 to-transparent border border-green-500/20 relative overflow-hidden group">
            <div className="relative z-10">
                <p className="text-green-200 text-sm font-bold uppercase tracking-wider mb-2">Collected</p>
                <h2 className="text-5xl font-bold text-green-400 tracking-tight">{fmt(stats.collected)}</h2>
            </div>
-
-           <div className="mt-6 h-1.5 w-full bg-black/20 rounded-full overflow-hidden">
-              <div className="h-full bg-green-400" style={{ width: `${(stats.collected / (stats.total_revenue || 1)) * 100}%` }}></div>
-           </div>
         </motion.div>
 
-        {/* Card 3: Pending */}
-        <motion.div 
-            initial={{ y: 20, opacity: 0 }} 
-            animate={{ y: 0, opacity: 1 }} 
-            transition={{ delay: 0.2 }} 
-            className="glass-panel p-8 rounded-[2.5rem] bg-gradient-to-br from-red-500/20 to-transparent border border-red-500/20 relative overflow-hidden group"
-        >
-           <div className="absolute top-0 right-0 p-8 opacity-20 text-red-400 group-hover:scale-110 transition-transform"><AlertCircle size={100} /></div>
-
+        <motion.div className="glass-panel p-8 rounded-[2.5rem] bg-gradient-to-br from-red-500/20 to-transparent border border-red-500/20 relative overflow-hidden group">
            <div className="relative z-10">
                <p className="text-red-200 text-sm font-bold uppercase tracking-wider mb-2">Pending Dues</p>
                <h2 className="text-5xl font-bold text-red-400 tracking-tight">{fmt(stats.pending)}</h2>
-           </div>
-
-           <div className="mt-6 h-1.5 w-full bg-black/20 rounded-full overflow-hidden">
-              <div className="h-full bg-red-400" style={{ width: `${(stats.pending / (stats.total_revenue || 1)) * 100}%` }}></div>
            </div>
         </motion.div>
       </div>
@@ -162,13 +129,10 @@ const Finance = () => {
          {loading ? (
              <div className="flex flex-col items-center justify-center py-20">
                  <div className="w-10 h-10 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                 <p className="text-gray-500 animate-pulse">Syncing Ledger...</p>
              </div>
          ) : invoices.length === 0 ? (
              <div className="flex flex-col items-center justify-center py-20 border border-dashed border-white/10 rounded-[2rem] bg-white/5">
-                 <FileText size={48} className="text-gray-600 mb-4 opacity-50"/>
                  <p className="text-gray-400 text-lg">No invoices generated yet.</p>
-                 <p className="text-gray-600 text-sm">Create a Fee Structure and generate your first bill.</p>
              </div>
          ) : (
              <div className="grid grid-cols-1 gap-4 pb-20">
@@ -179,13 +143,12 @@ const Finance = () => {
                      animate={{ opacity: 1, y: 0 }}
                      transition={{ delay: idx * 0.05 }}
                      whileHover={{ scale: 1.01, backgroundColor: "rgba(255,255,255,0.08)" }}
-                     onClick={() => {
-                        if (inv.status !== 'PAID') setSelectedInvoice(inv);
-                     }}
-                     className={`glass-panel p-6 rounded-[2rem] border border-white/5 bg-white/5 transition-all flex flex-col md:flex-row items-start md:items-center justify-between group ${inv.status !== 'PAID' ? 'cursor-pointer hover:border-yellow-500/30' : ''}`}
+                     className={`glass-panel p-6 rounded-[2rem] border border-white/5 bg-white/5 transition-all flex flex-col md:flex-row items-center justify-between group ${inv.status !== 'PAID' ? 'cursor-pointer hover:border-yellow-500/30' : ''}`}
                    >
-                      <div className="flex items-center gap-5 w-full md:w-auto">
-                         {/* Status Icon */}
+                      <div 
+                        className="flex items-center gap-5 w-full md:w-auto flex-1"
+                        onClick={() => { if (inv.status !== 'PAID') setSelectedInvoice(inv); }}
+                      >
                          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-xl border shadow-lg ${
                             inv.status === 'PAID' ? 'bg-green-500/10 border-green-500/20 text-green-400 shadow-green-900/20' : 
                             inv.status === 'PARTIAL' ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400 shadow-yellow-900/20' :
@@ -210,20 +173,34 @@ const Finance = () => {
                          </div>
                       </div>
 
-                      <div className="text-right mt-4 md:mt-0 w-full md:w-auto pl-20 md:pl-0">
-                         <div className="text-3xl font-bold text-white font-mono tracking-tight">{fmt(inv.total_amount)}</div>
-                         
-                         {inv.balance_due > 0 ? (
-                             <div className="flex items-center justify-end gap-2 text-xs font-bold text-red-400 mt-1 bg-red-500/10 px-2 py-1 rounded-lg inline-flex float-right">
-                                <AlertCircle size={12} />
-                                <span>Due: {fmt(inv.balance_due)}</span>
-                             </div>
-                         ) : (
-                             <div className="flex items-center justify-end gap-2 text-xs font-bold text-green-400 mt-1 bg-green-500/10 px-2 py-1 rounded-lg inline-flex float-right">
-                                <CheckCircle size={12} />
-                                <span>PAID</span>
-                             </div>
-                         )}
+                      <div className="flex items-center gap-6 mt-4 md:mt-0">
+                         {/* --- DOWNLOAD BUTTON --- */}
+                         <button 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(`http://127.0.0.1:8000/api/finance/invoices/${inv.id}/download/`, '_blank');
+                            }}
+                            className="p-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-blue-400 border border-transparent hover:border-blue-400/30 transition-all"
+                            title="Download PDF"
+                         >
+                            <Download size={20} />
+                         </button>
+
+                         <div className="text-right">
+                             <div className="text-3xl font-bold text-white font-mono tracking-tight">{fmt(inv.total_amount)}</div>
+                             
+                             {inv.balance_due > 0 ? (
+                                 <div className="flex items-center justify-end gap-2 text-xs font-bold text-red-400 mt-1 bg-red-500/10 px-2 py-1 rounded-lg inline-flex float-right">
+                                    <AlertCircle size={12} />
+                                    <span>Due: {fmt(inv.balance_due)}</span>
+                                 </div>
+                             ) : (
+                                 <div className="flex items-center justify-end gap-2 text-xs font-bold text-green-400 mt-1 bg-green-500/10 px-2 py-1 rounded-lg inline-flex float-right">
+                                    <CheckCircle size={12} />
+                                    <span>PAID</span>
+                                 </div>
+                             )}
+                         </div>
                       </div>
                    </motion.div>
                 ))}
@@ -232,21 +209,8 @@ const Finance = () => {
       </div>
 
       <Dock />
-
-      {/* --- MODALS --- */}
-      <BulkInvoiceModal 
-        isOpen={isBulkOpen} 
-        onClose={() => setIsBulkOpen(false)}
-        onSuccess={fetchData} 
-      />
-
-      <PaymentModal
-        invoice={selectedInvoice}
-        isOpen={!!selectedInvoice}
-        onClose={() => setSelectedInvoice(null)}
-        onSuccess={fetchData}
-      />
-
+      <BulkInvoiceModal isOpen={isBulkOpen} onClose={() => setIsBulkOpen(false)} onSuccess={fetchData} />
+      <PaymentModal invoice={selectedInvoice} isOpen={!!selectedInvoice} onClose={() => setSelectedInvoice(null)} onSuccess={fetchData} />
     </div>
   );
 };

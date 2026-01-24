@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   LayoutGrid, Users, GraduationCap, CreditCard, FileText, 
-  Settings, LogOut, Briefcase, Library, ClipboardList, 
-  IdCard, Award, FileBarChart, BookOpen, Scroll, Calculator // <--- Both Icons imported
+  Settings, LogOut, Briefcase, Library, ClipboardList,Bus,
+  IdCard, Award, FileBarChart, BookOpen, Scroll, Calculator,Shield
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -28,9 +28,44 @@ const Dock = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [hoveredTab, setHoveredTab] = useState(null);
-  
   const [isVisible, setIsVisible] = useState(false);
   const [exitTimer, setExitTimer] = useState(null);
+
+  // --- ENHANCEMENT: Role-Based Access ---
+  // Default to 'ADMIN' if not found, or 'GUEST' if you prefer stricter security
+  const userRole = localStorage.getItem('user_type') || 'ADMIN'; 
+
+  // Define Menu Items with Access Control
+  const allMenuItems = [
+    { icon: LayoutGrid, label: 'Dashboard', path: '/dashboard', allowedRoles: ['ADMIN', 'STAFF', 'STUDENT'] },
+    { icon: FileText, label: 'Notices', path: '/notices', allowedRoles: ['ADMIN', 'STAFF', 'STUDENT'] },
+    
+    // Academic & Students
+    { icon: Users, label: 'Students', path: '/students', allowedRoles: ['ADMIN', 'STAFF'] },
+    { icon: GraduationCap, label: 'Academics', path: '/academics', allowedRoles: ['ADMIN', 'STAFF'] },
+    { icon: BookOpen, label: 'Classes', path: '/classes', allowedRoles: ['ADMIN', 'STAFF'] },
+    { icon: ClipboardList, label: 'Tasks', path: '/assignments', allowedRoles: ['ADMIN', 'STAFF', 'STUDENT'] },
+    
+    // Exams & Grades
+    { icon: Scroll, label: 'Exams', path: '/exams', allowedRoles: ['ADMIN', 'STAFF'] },
+    { icon: Calculator, label: 'Grades', path: '/gradebook', allowedRoles: ['ADMIN', 'STAFF'] }, 
+    { icon: FileBarChart, label: 'Reports', path: '/report-cards', allowedRoles: ['ADMIN', 'STAFF', 'STUDENT'] },
+
+    // Admin / Utility
+    { icon: IdCard, label: 'ID Cards', path: '/id-cards', allowedRoles: ['ADMIN', 'STAFF'] },
+    { icon: Award, label: 'Certificates', path: '/certificates', allowedRoles: ['ADMIN'] },
+    { icon: Library, label: 'Library', path: '/library', allowedRoles: ['ADMIN', 'STAFF', 'STUDENT'] },
+    { icon: DynamicCalendarIcon, label: 'Timetable', path: '/timetable', allowedRoles: ['ADMIN', 'STAFF', 'STUDENT'] },
+    
+    // Sensitive Modules
+    { icon: Shield, label: 'Gatekeeper', path: '/visitors', allowedRoles: ['ADMIN', 'SECURITY'] },
+    { icon: Bus, label: 'Fleet', path: '/transport', allowedRoles: ['ADMIN'] },
+    { icon: CreditCard, label: 'Finance', path: '/finance', allowedRoles: ['ADMIN', 'ACCOUNTANT'] },
+    { icon: Briefcase, label: 'HR', path: '/hr', allowedRoles: ['ADMIN'] },
+  ];
+
+  // Filter items based on the current user's role
+  const menuItems = allMenuItems.filter(item => item.allowedRoles.includes(userRole));
 
   const handleMouseEnter = () => {
     if (exitTimer) clearTimeout(exitTimer);
@@ -44,40 +79,22 @@ const Dock = () => {
     setExitTimer(timer);
   };
 
-  const menuItems = [
-    { icon: LayoutGrid, label: 'Dashboard', path: '/dashboard', animation: { rotate: 180 } },
-    { icon: Users, label: 'Students', path: '/students', animation: { y: [0, -5, 0], transition: { repeat: Infinity, duration: 0.8 } } },
-    { icon: GraduationCap, label: 'Academics', path: '/academics', animation: { scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] } },
-    { icon: BookOpen, label: 'Classes', path: '/classes' },
-    { icon: ClipboardList, label: 'Tasks', path: '/assignments' },
-    
-    // --- BOTH MODULES NOW VISIBLE ---
-    { icon: Scroll, label: 'Exams', path: '/exams', animation: { rotate: [0, 10, -10, 0] } },
-    { icon: Calculator, label: 'Grades', path: '/gradebook', animation: { scale: [1, 1.2, 1] } }, 
-
-    { icon: IdCard, label: 'ID Cards', path: '/id-cards', animation: { scaleX: [1, -1, 1], transition: { duration: 0.8 } } },
-    { icon: Award, label: 'Certificates', path: '/certificates', animation: { scale: [1, 1.2, 1] } },
-    { icon: FileBarChart, label: 'Reports', path: '/report-cards' },
-    { icon: Library, label: 'Library', path: '/library', animation: { scale: [1, 1.1, 1] } },
-    { icon: CreditCard, label: 'Finance', path: '/finance', animation: { rotateY: 180, transition: { duration: 0.6 } } },
-    { icon: DynamicCalendarIcon, label: 'Timetable', path: '/timetable', animation: { x: [0, -3, 3, -3, 0] } },
-    { icon: Briefcase, label: 'HR', path: '/hr', animation: { rotate: [0, -15, 15, -15, 0], transition: { duration: 0.5 } } },
-    { icon: FileText, label: 'Notices', path: '/notices', animation: { rotate: [0, 10, 0] } },
-  ];
-
   const handleLogout = () => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user_type'); // Clear role on logout
     navigate('/');
   };
 
   return (
     <>
+      {/* Invisible Trigger Zone */}
       <div 
         className="fixed bottom-0 left-0 w-full h-6 z-50 bg-transparent"
         onMouseEnter={handleMouseEnter}
       />
 
+      {/* Dock Container */}
       <motion.div 
         className="fixed bottom-4 left-1/2 z-50 w-auto pointer-events-auto"
         initial={{ x: "-50%", y: 150 }} 
@@ -102,13 +119,15 @@ const Dock = () => {
                 onClick={() => navigate(item.path)}
                 className="relative group p-2"
               >
+                {/* Icon Container */}
                 <motion.div 
                   className={`p-3 rounded-2xl transition-all duration-300 flex items-center justify-center ${isActive ? 'bg-blue-600 shadow-[0_0_20px_rgba(37,99,235,0.5)]' : 'bg-white/5 hover:bg-white/10'}`}
-                  animate={isHovered ? item.animation : { rotate: 0, y: 0, x: 0, scale: 1 }}
+                  animate={isHovered ? { scale: 1.1, y: -5 } : { scale: 1, y: 0 }}
                 >
                   <item.icon size={20} className={`transition-colors ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-white'}`} />
                 </motion.div>
                 
+                {/* Tooltip Label */}
                 <AnimatePresence>
                   {isHovered && (
                     <motion.span 
@@ -123,6 +142,7 @@ const Dock = () => {
                   )}
                 </AnimatePresence>
                 
+                {/* Active Dot Indicator */}
                 {isActive && (
                   <motion.div layoutId="activeDot" className="absolute -bottom-2 left-1/2 w-1.5 h-1.5 bg-blue-400 rounded-full shadow-[0_0_10px_rgba(96,165,250,1)] transform -translate-x-1/2" />
                 )}
@@ -132,6 +152,7 @@ const Dock = () => {
 
           <div className="w-px h-8 bg-white/10 mx-2" /> 
 
+          {/* Settings (Static) */}
           <motion.button
             whileHover={{ rotate: 180, scale: 1.1 }}
             className="p-3 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
@@ -139,6 +160,7 @@ const Dock = () => {
             <Settings size={20} />
           </motion.button>
 
+          {/* Logout (Static) */}
           <motion.button
             whileHover={{ scale: 1.1, color: '#ef4444', x: [0, -2, 2, 0] }}
             onClick={handleLogout}
@@ -150,6 +172,7 @@ const Dock = () => {
         </div>
       </motion.div>
       
+      {/* Dock Hint Bar (Visible when dock is hidden) */}
       <AnimatePresence>
         {!isVisible && (
             <motion.div 

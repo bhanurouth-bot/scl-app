@@ -34,6 +34,7 @@ urlpatterns = [
     path('api/certificates/', include('certificates.urls')), # ID Cards & Certs
     path('api/health/', include('health.urls')),           # Infirmary records
     path('api/results/', include('results.urls')),
+    path('api/transport/', include('transport.urls')),
     
 ]
 

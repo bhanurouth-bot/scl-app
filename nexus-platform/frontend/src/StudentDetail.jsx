@@ -10,7 +10,60 @@ import {
 import api from './api';
 import Dock from './Dock';
 import SignaturePad from './SignaturePad';
-import { Skeleton } from './components/GlassUI'; // Ensure this path matches your structure
+import { Skeleton } from './components/GlassUI';
+
+// --- NEW: HEATMAP COMPONENT ---
+const HeatmapCalendar = ({ data }) => {
+    // Generate last 30 days
+    const days = [];
+    const today = new Date();
+    for (let i = 29; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(today.getDate() - i);
+        days.push(d.toISOString().split('T')[0]);
+    }
+
+    const getStatusColor = (status) => {
+        switch(status) {
+            case 'PRESENT': return 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]';
+            case 'ABSENT': return 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]';
+            case 'LATE': return 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.4)]';
+            case 'EXCUSED': return 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.4)]';
+            default: return 'bg-white/5 border border-white/5'; 
+        }
+    };
+
+    return (
+        <div className="glass-panel p-6 rounded-[2rem] border border-white/10 bg-white/5 w-full h-full flex flex-col justify-center">
+            <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                <Calendar size={20} className="text-purple-400"/> 30-Day Activity
+            </h3>
+            <div className="flex flex-wrap gap-2 justify-center">
+                {days.map(dateStr => {
+                    const status = data[dateStr];
+                    return (
+                        <div key={dateStr} className="group relative">
+                            <div 
+                                className={`w-3 h-10 md:w-8 md:h-8 rounded-lg transition-all ${getStatusColor(status)}`}
+                            ></div>
+                            {/* Tooltip */}
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-20">
+                                <div className="bg-black text-white text-xs px-2 py-1 rounded whitespace-nowrap border border-white/20">
+                                    {dateStr}: {status || 'No School'}
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+            <div className="flex gap-4 justify-center mt-6 text-[10px] text-gray-500 uppercase font-bold tracking-widest">
+                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Present</span>
+                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500"></div> Absent</span>
+                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-yellow-500"></div> Late</span>
+            </div>
+        </div>
+    );
+};
 
 const StudentDetail = () => {
   const { id } = useParams();
@@ -29,17 +82,16 @@ const StudentDetail = () => {
   // --- Action States ---
   const [isUploading, setIsUploading] = useState(false);
   const [showSigPad, setShowSigPad] = useState(false);
-  const [sigType, setSigType] = useState(null); // 'student' or 'guardian'
-  const [refreshKey, setRefreshKey] = useState(Date.now()); // To force image refresh after sign
+  const [sigType, setSigType] = useState(null); 
+  const [refreshKey, setRefreshKey] = useState(Date.now());
 
   // --- Initial Fetch ---
   useEffect(() => {
     const fetchAll = async () => {
         try {
-            // Parallel fetch for speed
             const [stuRes, attRes, resRes] = await Promise.all([
                 api.get(`students/profiles/${id}/`),
-                api.get(`attendance/stats/${id}/`).catch(() => ({ data: null })), 
+                api.get(`attendance/stats/${id}/`).catch(() => ({ data: {} })), 
                 api.get(`results/report-cards/?student=${id}`).catch(() => ({ data: [] }))
             ]);
             setStudent(stuRes.data);
@@ -55,7 +107,6 @@ const StudentDetail = () => {
   }, [id]);
 
   // --- Handlers ---
-
   const handleOpenSigPad = (type) => {
     setSigType(type);
     setShowSigPad(true);
@@ -70,11 +121,9 @@ const StudentDetail = () => {
       await api.patch(`students/profiles/${id}/`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      
-      // Refresh local data
       const res = await api.get(`students/profiles/${id}/`);
       setStudent(res.data);
-      setRefreshKey(Date.now()); // Force image reload
+      setRefreshKey(Date.now());
       setShowSigPad(false);
     } catch (err) {
       alert("Failed to save signature.");
@@ -98,16 +147,17 @@ const StudentDetail = () => {
         await api.post('students/documents/', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
-        // Refresh to see new doc
         const res = await api.get(`students/profiles/${id}/`);
         setStudent(res.data);
     } catch (err) {
-        alert("Upload Failed. Ensure Document API is ready.");
+        alert("Upload Failed.");
         console.error(err);
     } finally {
         setIsUploading(false);
     }
   };
+
+  if (loading) return <div className="min-h-screen bg-[#050505] flex items-center justify-center text-white">Loading Profile...</div>;
 
   return (
     <div className="min-h-screen bg-[#050505] text-white pb-40 pt-10 px-6 md:px-12 relative overflow-x-hidden selection:bg-blue-500/30">
@@ -125,39 +175,23 @@ const StudentDetail = () => {
         </button>
 
         <div className="flex flex-col md:flex-row gap-8 items-start mb-8">
-            {/* Avatar */}
-            {loading ? (
-                <Skeleton className="w-32 h-32 rounded-full border-4 border-white/10" />
-            ) : (
-                <div className="w-32 h-32 rounded-full border-4 border-white/10 overflow-hidden bg-gray-800 shadow-2xl relative">
-                    <img 
-                      src={student.profile_picture || `https://ui-avatars.com/api/?name=${student.user.first_name}+${student.user.last_name}&background=random`} 
-                      alt="Profile" 
-                      className="w-full h-full object-cover"
-                    />
-                </div>
-            )}
-            
-            {/* Name & ID */}
+            <div className="w-32 h-32 rounded-full border-4 border-white/10 overflow-hidden bg-gray-800 shadow-2xl relative">
+                <img 
+                    src={student.profile_picture || `https://ui-avatars.com/api/?name=${student.user.first_name}+${student.user.last_name}&background=random`} 
+                    alt="Profile" 
+                    className="w-full h-full object-cover"
+                />
+            </div>
             <div className="space-y-2">
-                {loading ? (
-                    <>
-                        <Skeleton className="h-10 w-64 rounded-xl bg-white/10" />
-                        <Skeleton className="h-6 w-40 rounded-lg bg-white/5" />
-                    </>
-                ) : (
-                    <>
-                        <h1 className="text-5xl font-bold text-white mb-2">{student.user.first_name} {student.user.last_name}</h1>
-                        <div className="flex items-center gap-4 text-gray-400">
-                            <span className="bg-blue-600/20 text-blue-400 px-3 py-1 rounded-full text-xs font-bold border border-blue-600/30">
-                                {student.student_id}
-                            </span>
-                            <span className="flex items-center gap-1 text-sm">
-                                <User size={14} /> Grade {student.classroom_details?.grade_level || 'N/A'} - {student.classroom_details?.section || 'A'}
-                            </span>
-                        </div>
-                    </>
-                )}
+                <h1 className="text-5xl font-bold text-white mb-2">{student.user.first_name} {student.user.last_name}</h1>
+                <div className="flex items-center gap-4 text-gray-400">
+                    <span className="bg-blue-600/20 text-blue-400 px-3 py-1 rounded-full text-xs font-bold border border-blue-600/30">
+                        {student.student_id}
+                    </span>
+                    <span className="flex items-center gap-1 text-sm">
+                        <User size={14} /> Grade {student.classroom_details?.grade_level || 'N/A'} - {student.classroom_details?.section || 'A'}
+                    </span>
+                </div>
             </div>
         </div>
 
@@ -176,7 +210,7 @@ const StudentDetail = () => {
           <AnimatePresence mode="wait">
             
             {/* 1. OVERVIEW TAB */}
-            {activeTab === 'overview' && !loading && (
+            {activeTab === 'overview' && (
                 <motion.div 
                     key="overview" 
                     initial={{ opacity: 0, y: 10 }} 
@@ -224,15 +258,16 @@ const StudentDetail = () => {
                 </motion.div>
             )}
 
-            {/* 2. ATTENDANCE TAB */}
+            {/* 2. ATTENDANCE TAB (ENHANCED WITH HEATMAP) */}
             {activeTab === 'attendance' && (
                 <motion.div 
                     key="attendance" 
                     initial={{ opacity: 0, y: 10 }} 
                     animate={{ opacity: 1, y: 0 }} 
                     exit={{ opacity: 0, y: -10 }} 
-                    className="grid grid-cols-1 md:grid-cols-2 gap-8"
+                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
                 >
+                   {/* Donut Chart */}
                    <div className="glass-panel p-8 rounded-[2rem] border border-white/10 bg-white/5 flex flex-col items-center justify-center">
                       <h3 className="text-xl font-bold text-white mb-6">Attendance Overview</h3>
                       {attendanceStats ? (
@@ -243,30 +278,34 @@ const StudentDetail = () => {
                                       <div className="text-sm text-gray-400">Present</div>
                                   </div>
                                </div>
-                               {/* CSS SVG Pie Chart */}
                                <svg className="w-full h-full rotate-[-90deg]" viewBox="0 0 100 100">
                                   <circle cx="50" cy="50" r="46" fill="none" stroke="#10b981" strokeWidth="8" strokeDasharray={`${attendanceStats.percentage * 2.89} 289`} strokeLinecap="round" />
                                </svg>
                           </div>
                       ) : (
-                          <div className="text-gray-500 text-center py-10">
-                              <PieChart size={40} className="mx-auto mb-2 opacity-50"/>
-                              No attendance data available.
-                          </div>
+                          <div className="text-gray-500 text-center py-10">No Data</div>
                       )}
                    </div>
                    
-                   <div className="glass-panel p-8 rounded-[2rem] border border-white/10 bg-white/5">
-                      <h3 className="text-xl font-bold text-white mb-6">Recent History</h3>
-                      <div className="space-y-3">
-                          {attendanceStats?.history?.slice(0, 5).map((rec, i) => (
-                               <div key={i} className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5">
-                                   <span className="text-gray-300 font-mono text-sm">{rec.date}</span>
-                                   <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${rec.status === 'PRESENT' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                                       {rec.status}
-                                   </span>
-                               </div>
-                          )) || <div className="text-gray-500 italic">No records found.</div>}
+                   {/* NEW: Heatmap Calendar */}
+                   <div className="lg:col-span-2">
+                        <HeatmapCalendar data={attendanceStats?.calendar || {}} />
+                   </div>
+                   
+                   {/* Recent History */}
+                   <div className="lg:col-span-3">
+                      <div className="glass-panel p-8 rounded-[2rem] border border-white/10 bg-white/5">
+                          <h3 className="text-xl font-bold text-white mb-6">Recent Records</h3>
+                          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                              {attendanceStats?.history?.slice(0, 5).map((rec, i) => (
+                                   <div key={i} className="flex flex-col items-center justify-center p-4 bg-white/5 rounded-2xl border border-white/5">
+                                       <span className="text-gray-400 font-mono text-xs mb-2">{rec.date}</span>
+                                       <span className={`px-3 py-1 rounded-lg text-xs font-bold uppercase ${rec.status === 'PRESENT' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                           {rec.status}
+                                       </span>
+                                   </div>
+                              )) || <div className="text-gray-500 italic col-span-5 text-center py-10">No recent records.</div>}
+                          </div>
                       </div>
                    </div>
                 </motion.div>
@@ -336,12 +375,6 @@ const StudentDetail = () => {
                                     {student.medical_profile?.allergies || "No known allergies."}
                                 </div>
                             </div>
-                            <div>
-                                <label className="text-xs text-blue-400 uppercase font-bold">Medications</label>
-                                <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-sm text-blue-200 mt-1">
-                                    {student.medical_profile?.medications || "No current medications."}
-                                </div>
-                            </div>
                         </div>
                     </SectionCard>
                     <SectionCard title="Emergency Contacts" icon={Phone}>
@@ -355,7 +388,7 @@ const StudentDetail = () => {
                 </motion.div>
             )}
 
-            {/* 5. DOCUMENTS TAB (With Upload) */}
+            {/* 5. DOCUMENTS TAB */}
             {activeTab === 'docs' && (
                 <motion.div 
                     key="docs" 
@@ -417,8 +450,7 @@ const StudentDetail = () => {
       </div>
 
       <Dock />
-
-      {/* --- SIGNATURE MODAL --- */}
+      
       <AnimatePresence>
         {showSigPad && (
             <SignaturePad 

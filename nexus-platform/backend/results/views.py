@@ -2,7 +2,7 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Sum, Avg # <--- ADDED Avg
 from .models import Exam, Result, ExamPaper, ReportCard
 from .serializers import ExamSerializer, ResultSerializer, ExamPaperSerializer, ReportCardSerializer
 from attendance.models import AttendanceRecord
@@ -12,7 +12,6 @@ class ResultViewSet(viewsets.ModelViewSet):
     serializer_class = ResultSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    # ... (Keep get_queryset) ...
     def get_queryset(self):
         qs = super().get_queryset()
         student = self.request.query_params.get('student')
@@ -28,7 +27,7 @@ class ResultViewSet(viewsets.ModelViewSet):
             return Response({"error": "Expected a list"}, status=400)
 
         # 1. Save all marks
-        affected_pairs = set() # Store (student_id, exam_id) to update later
+        affected_pairs = set() 
         
         with transaction.atomic():
             for item in data:
@@ -43,14 +42,13 @@ class ResultViewSet(viewsets.ModelViewSet):
                 )
                 affected_pairs.add((item['student'], item['exam']))
 
-            # 2. Auto-Generate Report Cards for affected students
+            # 2. Auto-Generate Report Cards
             for student_id, exam_id in affected_pairs:
                 self._update_report_card(student_id, exam_id)
 
         return Response({"status": "success", "message": "Grades saved & Report Cards updated"})
 
     def _update_report_card(self, student_id, exam_id):
-        """Helper to calculate totals and update the ReportCard model"""
         # A. Calculate Score
         results = Result.objects.filter(student_id=student_id, exam_id=exam_id)
         total_obtained = results.aggregate(Sum('marks_obtained'))['marks_obtained__sum'] or 0
@@ -60,7 +58,7 @@ class ResultViewSet(viewsets.ModelViewSet):
         if total_max > 0:
             avg_score = (float(total_obtained) / float(total_max)) * 100
 
-        # B. Calculate Attendance (Optional: Update if needed)
+        # B. Calculate Attendance
         total_sess = AttendanceRecord.objects.filter(student_id=student_id).count()
         present_sess = AttendanceRecord.objects.filter(student_id=student_id, status__in=['PRESENT', 'LATE']).count()
         att_pct = (present_sess / total_sess * 100) if total_sess > 0 else 0
@@ -72,17 +70,37 @@ class ResultViewSet(viewsets.ModelViewSet):
             defaults={
                 'average_score': avg_score,
                 'attendance_percentage': att_pct,
-                # Simple pass/fail logic for remarks
                 'remarks': "Promoted" if avg_score >= 40 else "Needs Improvement"
             }
         )
 
-# ... (Keep ExamViewSet, ExamPaperViewSet, ReportCardViewSet as they were) ...
-# Ensure ExamViewSet DOES NOT have the 'publish' action anymore, since it's redundant.
 class ExamViewSet(viewsets.ModelViewSet):
     queryset = Exam.objects.all().order_by('-start_date')
     serializer_class = ExamSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    # --- NEW: ANALYTICS ENDPOINT ---
+    @action(detail=False, methods=['get'])
+    def analytics(self, request):
+        """
+        Returns average score per exam for the Dashboard Chart.
+        """
+        data = []
+        # Get last 5 exams
+        exams = Exam.objects.filter(is_active=True).order_by('start_date')[:5]
+        
+        for exam in exams:
+            # Aggregate all results linked to this exam
+            # We calculate the average of 'marks_obtained' (normalized to 100 would be better, but raw avg works for trends)
+            avg = exam.result_set.aggregate(Avg('marks_obtained'))['marks_obtained__avg']
+            
+            if avg is not None:
+                data.append({
+                    "name": exam.name,
+                    "average": round(avg, 1)
+                })
+        
+        return Response(data)
 
 class ExamPaperViewSet(viewsets.ModelViewSet):
     queryset = ExamPaper.objects.all()

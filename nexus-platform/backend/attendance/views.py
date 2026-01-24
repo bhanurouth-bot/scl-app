@@ -16,14 +16,14 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         classroom = self.request.query_params.get('classroom')
         date = self.request.query_params.get('date')
-        session_type = self.request.query_params.get('session_type') # <--- ADDED THIS
+        session_type = self.request.query_params.get('session_type')
         
         if classroom:
             queryset = queryset.filter(classroom_id=classroom)
         if date:
             queryset = queryset.filter(date=date)
         if session_type:
-            queryset = queryset.filter(session_type=session_type) # <--- IMPORTANT
+            queryset = queryset.filter(session_type=session_type)
             
         return queryset
 
@@ -37,7 +37,6 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
             session_type = data['session_type']
             records = data['records']
 
-            # <--- IMPROVISATION: Auto-detect Teacher --->
             employee = None
             if hasattr(request.user, 'employee_profile'):
                 employee = request.user.employee_profile
@@ -50,7 +49,6 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
                     defaults={'taken_by': employee}
                 )
 
-                # If session existed but didn't have a teacher, update it
                 if not session.taken_by and employee:
                     session.taken_by = employee
                     session.save()
@@ -85,7 +83,6 @@ class StudentAttendanceViewSet(viewsets.ReadOnlyModelViewSet):
             return self.queryset.filter(student_id=student_id)
         return self.queryset.none()
 
-    # <--- IMPROVISATION: Stats for Report Cards --->
     @action(detail=False, methods=['get'])
     def stats(self, request):
         student_id = request.query_params.get('student')
@@ -110,6 +107,7 @@ class StudentAttendanceStatsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, student_id):
+        # 1. Basic Counts
         total = AttendanceRecord.objects.filter(student_id=student_id).count()
         present = AttendanceRecord.objects.filter(
             student_id=student_id, 
@@ -118,42 +116,19 @@ class StudentAttendanceStatsView(APIView):
         
         percentage = round((present / total * 100), 1) if total > 0 else 0.0
 
-        # Get last 5 records for the mini-history chart
-        history_qs = AttendanceRecord.objects.filter(student_id=student_id).order_by('-session__date')[:5]
-        history = [
-            {
-                "date": rec.session.date,
-                "status": rec.status
-            } 
-            for rec in history_qs
-        ]
-
-        return Response({
-            "total_sessions": total,
-            "present_sessions": present,
-            "percentage": percentage,
-            "history": history
-        })
-    
-class StudentAttendanceStatsView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get(self, request, student_id):
-        total = AttendanceRecord.objects.filter(student_id=student_id).count()
-        present = AttendanceRecord.objects.filter(
-            student_id=student_id, 
-            status__in=['PRESENT', 'LATE', 'HALF_DAY']
-        ).count()
-        
-        percentage = round((present / total * 100), 1) if total > 0 else 0.0
-
-        # Last 5 records
+        # 2. Recent History
         history_qs = AttendanceRecord.objects.filter(student_id=student_id).order_by('-session__date')[:5]
         history = [{"date": rec.session.date, "status": rec.status} for rec in history_qs]
 
+        # 3. Calendar Data for Heatmap
+        # Returns: {'2023-10-01': 'PRESENT', '2023-10-02': 'ABSENT'}
+        all_records = AttendanceRecord.objects.filter(student_id=student_id).select_related('session')
+        calendar_data = {str(rec.session.date): rec.status for rec in all_records}
+
         return Response({
             "total_sessions": total,
             "present_sessions": present,
             "percentage": percentage,
-            "history": history
+            "history": history,
+            "calendar": calendar_data # <--- NEW FIELD
         })

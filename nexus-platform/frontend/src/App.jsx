@@ -45,6 +45,9 @@ import Certificates from './Certificates';
 import Gradebook from './Gradebook';
 import ReportCards from './ReportCards';
 import Classes from './Classes';
+import Visitors from './Visitors';
+import Transport from './Transport';
+import DriverTracker from './DriverTracker';
 
 const AppLayout = ({ children }) => {
   return (
@@ -105,7 +108,9 @@ const App = () => {
           <Route path="/gradebook" element={<PrivateRoute><AppLayout><Gradebook /></AppLayout></PrivateRoute>} />
           <Route path="/report-cards" element={<PrivateRoute><AppLayout><ReportCards /></AppLayout></PrivateRoute>} />
           <Route path="/classes" element={<PrivateRoute><AppLayout><Classes /></AppLayout></PrivateRoute>} />
-
+          <Route path="/visitors" element={<PrivateRoute><Visitors /></PrivateRoute>} />
+          <Route path="/transport" element={<PrivateRoute><Transport /></PrivateRoute>} />
+          <Route path="/driver-tracker" element={<DriverTracker />} />
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
           

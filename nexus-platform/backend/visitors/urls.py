@@ -1,7 +1,10 @@
-from django.urls import path
-from .views import VisitorListCreateAPI, CheckOutVisitorAPI
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import VisitorViewSet
+
+router = DefaultRouter()
+router.register(r'visitors', VisitorViewSet)
 
 urlpatterns = [
-    path('', VisitorListCreateAPI.as_view()),
-    path('<int:pk>/checkout/', CheckOutVisitorAPI.as_view()),
+    path('', include(router.urls)),
 ]

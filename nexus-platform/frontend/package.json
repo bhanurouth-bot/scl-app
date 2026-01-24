@@ -14,18 +14,22 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@react-google-maps/api": "^2.20.8",
     "axios": "^1.13.2",
     "chart.js": "^4.5.1",
     "framer-motion": "^12.27.5",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.0.0",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.562.0",
     "react": "^19.2.0",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.2.0",
+    "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.12.0",
     "react-signature-canvas": "^1.1.0-alpha.2",
-    "react-to-print": "^3.2.0"
+    "react-to-print": "^3.2.0",
+    "recharts": "^3.7.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
