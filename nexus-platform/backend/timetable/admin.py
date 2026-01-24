@@ -1,12 +1,8 @@
 from django.contrib import admin
-from .models import TimeSlot, TimetableEntry
+from .models import TimetableSlot
 
-@admin.register(TimeSlot)
-class TimeSlotAdmin(admin.ModelAdmin):
-    list_display = ('name', 'start_time', 'end_time')
-
-@admin.register(TimetableEntry)
-class TimetableEntryAdmin(admin.ModelAdmin):
-    # Updated list_display to use 'classroom' instead of grade/section
-    list_display = ('classroom', 'day', 'subject', 'time_slot', 'teacher', 'room_number')
-    list_filter = ('day', 'classroom')
+@admin.register(TimetableSlot)
+class TimetableSlotAdmin(admin.ModelAdmin):
+    list_display = ('classroom', 'day_of_week', 'start_time', 'end_time', 'subject', 'teacher')
+    list_filter = ('day_of_week', 'classroom', 'teacher')
+    search_fields = ('classroom__grade_level', 'subject__name', 'teacher__user__first_name')

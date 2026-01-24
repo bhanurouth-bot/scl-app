@@ -1,11 +1,11 @@
-from django.urls import path
-from .views import AssignmentListCreateAPI, SubmitAssignmentAPI, AssignmentSubmissionsAPI, GradeSubmissionAPI
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import AssignmentViewSet, SubmissionViewSet
+
+router = DefaultRouter()
+router.register(r'tasks', AssignmentViewSet)
+router.register(r'submissions', SubmissionViewSet)
 
 urlpatterns = [
-    path('', AssignmentListCreateAPI.as_view()),
-    path('submit/', SubmitAssignmentAPI.as_view()),
-    
-    # New Endpoints
-    path('<int:pk>/submissions/', AssignmentSubmissionsAPI.as_view()), # GET list
-    path('submission/<int:pk>/grade/', GradeSubmissionAPI.as_view()),  # PUT grade
+    path('', include(router.urls)),
 ]

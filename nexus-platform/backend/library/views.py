@@ -1,60 +1,58 @@
-from rest_framework import generics, status
-from rest_framework.views import APIView
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db import transaction
 from django.utils import timezone
-from datetime import timedelta
 from .models import Book, BookIssue
 from .serializers import BookSerializer, BookIssueSerializer
-from rest_framework.permissions import IsAuthenticated
 
-class BookListCreateAPI(generics.ListCreateAPIView):
+class BookViewSet(viewsets.ModelViewSet):
     queryset = Book.objects.all()
     serializer_class = BookSerializer
-    permission_classes = [IsAuthenticated]
 
-class IssueBookAPI(APIView):
-    permission_classes = [IsAuthenticated]
+class BookIssueViewSet(viewsets.ModelViewSet):
+    queryset = BookIssue.objects.all().order_by('-issue_date')
+    serializer_class = BookIssueSerializer
 
-    def post(self, request):
-        book_id = request.data.get('book_id')
-        student_id = request.data.get('student_id')
-        days = int(request.data.get('days', 14))
-
-        with transaction.atomic():
-            book = Book.objects.select_for_update().get(id=book_id)
+    def create(self, request, *args, **kwargs):
+        """
+        Override create to check stock and decrement availability.
+        """
+        book_id = request.data.get('book')
+        try:
+            book = Book.objects.get(id=book_id)
             if book.available_copies < 1:
-                return Response({"error": "Out of Stock"}, status=400)
+                return Response(
+                    {"error": "Book is currently out of stock."}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             
-            # Create Issue Record
-            BookIssue.objects.create(
-                book_id=book_id,
-                student_id=student_id,
-                due_date=timezone.now().date() + timedelta(days=days)
-            )
+            # Proceed to create the issue record
+            response = super().create(request, *args, **kwargs)
             
-            # Decrease Stock
+            # Success: Decrement stock
             book.available_copies -= 1
             book.save()
-            
-        return Response({"message": "Book Issued"})
+            return response
 
-class ReturnBookAPI(APIView):
-    permission_classes = [IsAuthenticated]
+        except Book.DoesNotExist:
+             return Response({"error": "Book not found"}, status=404)
 
-    def post(self, request, issue_id):
-        with transaction.atomic():
-            issue = BookIssue.objects.select_for_update().get(id=issue_id)
-            if issue.is_returned:
-                return Response({"error": "Already Returned"}, status=400)
-            
-            issue.is_returned = True
-            issue.return_date = timezone.now().date()
-            issue.save()
-
-            # Increase Stock
-            book = issue.book
-            book.available_copies += 1
-            book.save()
-
-        return Response({"message": "Book Returned"})
+    @action(detail=True, methods=['post'])
+    def return_book(self, request, pk=None):
+        """
+        Custom Action to mark a book as returned.
+        """
+        issue = self.get_object()
+        if issue.is_returned:
+            return Response({"error": "Book is already returned"}, status=400)
+        
+        # 1. Mark as Returned
+        issue.is_returned = True
+        issue.return_date = timezone.now().date()
+        issue.save()
+        
+        # 2. Increment Stock
+        issue.book.available_copies += 1
+        issue.book.save()
+        
+        return Response({"message": "Book returned successfully"})

@@ -1,7 +1,10 @@
-from django.urls import path
-from .views import TimeSlotListCreateAPI, TimetableListCreateAPI
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import TimetableSlotViewSet
+
+router = DefaultRouter()
+router.register(r'slots', TimetableSlotViewSet)
 
 urlpatterns = [
-    path('slots/', TimeSlotListCreateAPI.as_view()),
-    path('entries/', TimetableListCreateAPI.as_view()),
+    path('', include(router.urls)),
 ]

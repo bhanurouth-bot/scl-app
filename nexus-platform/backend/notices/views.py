@@ -1,14 +1,16 @@
-from rest_framework import generics
+from rest_framework import viewsets, permissions
 from .models import Notice
 from .serializers import NoticeSerializer
-from rest_framework.permissions import IsAuthenticated
 
-class NoticeListCreateAPI(generics.ListCreateAPIView):
-    queryset = Notice.objects.all().order_by('-is_pinned', '-created_at')
+class NoticeViewSet(viewsets.ModelViewSet):
+    queryset = Notice.objects.filter(is_active=True)
     serializer_class = NoticeSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
 
-class NoticeDeleteAPI(generics.DestroyAPIView):
-    queryset = Notice.objects.all()
-    serializer_class = NoticeSerializer
-    permission_classes = [IsAuthenticated]
+    def perform_create(self, serializer):
+        serializer.save(posted_by=self.request.user)
+
+    def get_queryset(self):
+        # Optional: Filter based on who is asking
+        # e.g., Students shouldn't see "Teacher Only" notices
+        return super().get_queryset()

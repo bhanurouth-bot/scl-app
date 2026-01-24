@@ -1,20 +1,34 @@
 from rest_framework import serializers
-from .models import TimeSlot, TimetableEntry
+from .models import TimetableSlot  # <--- Updated Import
+from academics.serializers import SubjectSerializer
+from hr.serializers import EmployeeSerializer
 
-class TimeSlotSerializer(serializers.ModelSerializer):
+class TimetableSlotSerializer(serializers.ModelSerializer):
+    # Nested data for easier frontend display
+    subject_details = SubjectSerializer(source='subject', read_only=True)
+    teacher_details = EmployeeSerializer(source='teacher', read_only=True)
+
     class Meta:
-        model = TimeSlot
+        model = TimetableSlot
         fields = '__all__'
 
-class TimetableEntrySerializer(serializers.ModelSerializer):
-    subject_name = serializers.CharField(source='subject.name', read_only=True)
-    teacher_name = serializers.CharField(source='teacher.first_name', read_only=True)
-    classroom_name = serializers.CharField(source='classroom.__str__', read_only=True)
-
-    class Meta:
-        model = TimetableEntry
-        fields = [
-            'id', 'classroom', 'classroom_name', 'day', 
-            'time_slot', 'subject', 'subject_name', 
-            'teacher', 'teacher_name', 'room_number'
-        ]
+    def validate(self, data):
+        # CUSTOM CONFLICT DETECTION
+        teacher = data.get('teacher')
+        day = data.get('day_of_week')
+        start = data.get('start_time')
+        
+        # Check if teacher is busy elsewhere (excluding self for updates)
+        if teacher:
+            busy = TimetableSlot.objects.filter(
+                teacher=teacher, 
+                day_of_week=day, 
+                start_time=start
+            ).exclude(pk=self.instance.pk if self.instance else None)
+            
+            if busy.exists():
+                conflict = busy.first()
+                raise serializers.ValidationError(
+                    f"Conflict! {teacher.user.get_full_name()} is already teaching in Grade {conflict.classroom.grade_level}-{conflict.classroom.section} at this time."
+                )
+        return data

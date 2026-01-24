@@ -1,36 +1,39 @@
 from django.db import models
-from django.conf import settings
+from core.models import Classroom, AcademicYear
 from academics.models import Subject
-from core.models import Classroom
+from hr.models import Employee
 
-class TimeSlot(models.Model):
-    name = models.CharField(max_length=50) # e.g. "Period 1"
-    start_time = models.TimeField()
-    end_time = models.TimeField()
-    
-    def __str__(self):
-        return f"{self.name} ({self.start_time.strftime('%H:%M')} - {self.end_time.strftime('%H:%M')})"
-
-class TimetableEntry(models.Model):
+class TimetableSlot(models.Model):
     DAYS_OF_WEEK = [
-        ('MON', 'Monday'), ('TUE', 'Tuesday'), ('WED', 'Wednesday'),
-        ('THU', 'Thursday'), ('FRI', 'Friday'), ('SAT', 'Saturday')
+        ('MON', 'Monday'),
+        ('TUE', 'Tuesday'),
+        ('WED', 'Wednesday'),
+        ('THU', 'Thursday'),
+        ('FRI', 'Friday'),
+        ('SAT', 'Saturday'),
+        ('SUN', 'Sunday'),
     ]
 
-    # Replaced grade/section strings with Classroom FK
-    classroom = models.ForeignKey(Classroom, on_delete=models.CASCADE, related_name='timetable')
-    
-    day = models.CharField(max_length=3, choices=DAYS_OF_WEEK)
-    
-    time_slot = models.ForeignKey(TimeSlot, on_delete=models.CASCADE)
+    classroom = models.ForeignKey(Classroom, on_delete=models.CASCADE, related_name='timetable_slots')
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
-    teacher = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    teacher = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, blank=True)
     
-    room_number = models.CharField(max_length=20, default="Room 101")
+    day_of_week = models.CharField(max_length=3, choices=DAYS_OF_WEEK)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
 
     class Meta:
-        unique_together = ('classroom', 'day', 'time_slot') # One class can't have 2 subjects at same time
-        verbose_name_plural = "Timetable Entries"
+        # CONSTRAINTS: The "Smart" Logic
+        constraints = [
+            # 1. A Class cannot have two subjects at the same time
+            models.UniqueConstraint(
+                fields=['classroom', 'day_of_week', 'start_time'], 
+                name='unique_class_slot'
+            ),
+            # 2. A Teacher cannot be in two places at the same time
+            # (Note: This requires teacher to be non-null to enforce at DB level, 
+            # but we will enforce it in Serializer for better error messages)
+        ]
 
     def __str__(self):
-        return f"{self.classroom} {self.day} : {self.subject.name}"
+        return f"{self.classroom} | {self.day_of_week} {self.start_time} | {self.subject}"

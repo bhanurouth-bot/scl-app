@@ -1,11 +1,16 @@
 from rest_framework import serializers
-from .models import Certificate
+from .models import IDCardLog, CertificateLog
+from students.serializers import StudentSerializer
 
-class CertificateSerializer(serializers.ModelSerializer):
-    student_name = serializers.CharField(source='student.first_name', read_only=True)
-    student_id = serializers.CharField(source='student.student_id', read_only=True)
-    issuer_name = serializers.CharField(source='issued_by.first_name', read_only=True)
-
+class IDCardLogSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Certificate
+        model = IDCardLog
+        fields = '__all__'
+
+class CertificateLogSerializer(serializers.ModelSerializer):
+    student_details = StudentSerializer(source='student', read_only=True)
+    issuer_name = serializers.CharField(source='issued_by.get_full_name', read_only=True)
+    
+    class Meta:
+        model = CertificateLog
         fields = '__all__'

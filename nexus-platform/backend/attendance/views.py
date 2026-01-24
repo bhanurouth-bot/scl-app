@@ -1,33 +1,34 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, permissions
+from rest_framework.views import APIView
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db import transaction
 from .models import AttendanceSession, AttendanceRecord
 from .serializers import AttendanceSessionSerializer, AttendanceBulkUpdateSerializer, AttendanceRecordSerializer
-from core.models import Classroom
-from students.models import Student
+from hr.models import Employee
 
 class AttendanceSessionViewSet(viewsets.ModelViewSet):
     queryset = AttendanceSession.objects.all().order_by('-date')
     serializer_class = AttendanceSessionSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         queryset = super().get_queryset()
         classroom = self.request.query_params.get('classroom')
         date = self.request.query_params.get('date')
+        session_type = self.request.query_params.get('session_type') # <--- ADDED THIS
         
         if classroom:
             queryset = queryset.filter(classroom_id=classroom)
         if date:
             queryset = queryset.filter(date=date)
+        if session_type:
+            queryset = queryset.filter(session_type=session_type) # <--- IMPORTANT
             
         return queryset
 
     @action(detail=False, methods=['post'])
     def mark_bulk(self, request):
-        """
-        Custom Endpoint to mark attendance for a whole class at once.
-        """
         serializer = AttendanceBulkUpdateSerializer(data=request.data)
         if serializer.is_valid():
             data = serializer.validated_data
@@ -36,28 +37,32 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
             session_type = data['session_type']
             records = data['records']
 
-            # 1. Find or Create the Session
+            # <--- IMPROVISATION: Auto-detect Teacher --->
+            employee = None
+            if hasattr(request.user, 'employee_profile'):
+                employee = request.user.employee_profile
+
             with transaction.atomic():
                 session, created = AttendanceSession.objects.get_or_create(
                     classroom_id=classroom_id,
                     date=date,
                     session_type=session_type,
-                    defaults={'taken_by': None} # You can link to request.user.employee if available
+                    defaults={'taken_by': employee}
                 )
 
-                # 2. Update each Student Record
+                # If session existed but didn't have a teacher, update it
+                if not session.taken_by and employee:
+                    session.taken_by = employee
+                    session.save()
+
                 updated_count = 0
                 for record in records:
-                    student_id = record.get('student_id')
-                    status_val = record.get('status', 'PRESENT')
-                    remarks = record.get('remarks', '')
-
                     AttendanceRecord.objects.update_or_create(
                         session=session,
-                        student_id=student_id,
+                        student_id=record['student_id'],
                         defaults={
-                            'status': status_val,
-                            'remarks': remarks
+                            'status': record.get('status', 'PRESENT'),
+                            'remarks': record.get('remarks', '')
                         }
                     )
                     updated_count += 1
@@ -68,14 +73,87 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
 
 class StudentAttendanceViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = AttendanceRecordSerializer
     queryset = AttendanceRecord.objects.all().order_by('-session__date')
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         student_id = self.request.query_params.get('student')
         if student_id:
             return self.queryset.filter(student_id=student_id)
-        return self.queryset.none() # Safety: Don't show all if no ID provided
+        return self.queryset.none()
+
+    # <--- IMPROVISATION: Stats for Report Cards --->
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        student_id = request.query_params.get('student')
+        if not student_id:
+            return Response({"error": "Student ID required"}, status=400)
+
+        total = AttendanceRecord.objects.filter(student_id=student_id).count()
+        present = AttendanceRecord.objects.filter(
+            student_id=student_id, 
+            status__in=['PRESENT', 'LATE', 'HALF_DAY']
+        ).count()
+        
+        pct = round((present / total * 100), 1) if total > 0 else 0.0
+        
+        return Response({
+            "total_sessions": total,
+            "present_sessions": present,
+            "percentage": pct
+        })
+    
+class StudentAttendanceStatsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, student_id):
+        total = AttendanceRecord.objects.filter(student_id=student_id).count()
+        present = AttendanceRecord.objects.filter(
+            student_id=student_id, 
+            status__in=['PRESENT', 'LATE', 'HALF_DAY']
+        ).count()
+        
+        percentage = round((present / total * 100), 1) if total > 0 else 0.0
+
+        # Get last 5 records for the mini-history chart
+        history_qs = AttendanceRecord.objects.filter(student_id=student_id).order_by('-session__date')[:5]
+        history = [
+            {
+                "date": rec.session.date,
+                "status": rec.status
+            } 
+            for rec in history_qs
+        ]
+
+        return Response({
+            "total_sessions": total,
+            "present_sessions": present,
+            "percentage": percentage,
+            "history": history
+        })
+    
+class StudentAttendanceStatsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, student_id):
+        total = AttendanceRecord.objects.filter(student_id=student_id).count()
+        present = AttendanceRecord.objects.filter(
+            student_id=student_id, 
+            status__in=['PRESENT', 'LATE', 'HALF_DAY']
+        ).count()
+        
+        percentage = round((present / total * 100), 1) if total > 0 else 0.0
+
+        # Last 5 records
+        history_qs = AttendanceRecord.objects.filter(student_id=student_id).order_by('-session__date')[:5]
+        history = [{"date": rec.session.date, "status": rec.status} for rec in history_qs]
+
+        return Response({
+            "total_sessions": total,
+            "present_sessions": present,
+            "percentage": percentage,
+            "history": history
+        })

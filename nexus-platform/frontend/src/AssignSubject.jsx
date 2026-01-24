@@ -1,50 +1,90 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, BookOpen, User } from 'lucide-react';
+import { X, Save, BookOpen, User, AlertCircle } from 'lucide-react';
 import api from './api';
 
 const AssignSubject = ({ isOpen, onClose, classroomId, onSuccess }) => {
-  const [subjects, setSubjects] = useState([]);
+  const [subjects, setSubjects] = useState([]); // Only UNASSIGNED subjects
   const [teachers, setTeachers] = useState([]);
+  const [academicYearId, setAcademicYearId] = useState(null);
+  
   const [formData, setFormData] = useState({
     subject: '',
     teacher: ''
   });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   // Fetch Data on Open
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && classroomId) {
       const fetchData = async () => {
         try {
-          const [subRes, teachRes] = await Promise.all([
+          setError(null);
+          // 1. Fetch Classroom (for Academic Year)
+          // 2. Fetch All Subjects
+          // 3. Fetch Employees (Teachers)
+          // 4. Fetch EXISTING Allocations for this class (to filter them out)
+          const [clsRes, subRes, teachRes, allocRes] = await Promise.all([
+            api.get(`core/classrooms/${classroomId}/`), 
             api.get('academics/subjects/'),
-            api.get('hr/employees/')
+            api.get('hr/employees/'),
+            api.get(`academics/allocations/?classroom=${classroomId}`)
           ]);
-          setSubjects(subRes.data);
+
+          // Handle Academic Year
+          const yearData = clsRes.data.academic_year;
+          const yearId = typeof yearData === 'object' ? yearData.id : yearData;
+          setAcademicYearId(yearId);
+
+          // Calculate Available Subjects (Total - Already Assigned)
+          const assignedSubjectIds = allocRes.data.map(a => 
+            typeof a.subject === 'object' ? a.subject.id : a.subject
+          );
+          
+          const availableSubjects = subRes.data.filter(s => !assignedSubjectIds.includes(s.id));
+          
+          setSubjects(availableSubjects);
           setTeachers(teachRes.data);
+
         } catch (err) {
-          console.error("Failed to load dropdowns", err);
+          console.error("Failed to load data", err);
+          setError("Failed to load prerequisite data.");
         }
       };
       fetchData();
     }
-  }, [isOpen]);
+  }, [isOpen, classroomId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(null);
+
+    if (!academicYearId) {
+      setError("Academic Year not linked to this classroom.");
+      return;
+    }
+
     setLoading(true);
     try {
-      // Create the Allocation Link
       await api.post('academics/allocations/', {
         classroom: classroomId,
         subject: formData.subject,
-        teacher: formData.teacher
+        teacher: formData.teacher,
+        academic_year: academicYearId
       });
       onSuccess();
       onClose();
+      // Reset form
+      setFormData({ subject: '', teacher: '' }); 
     } catch (err) {
-      alert("Assignment Failed: " + JSON.stringify(err.response?.data));
+      // Friendly Error Handling
+      if (err.response?.data?.non_field_errors) {
+        setError("This subject is already assigned to this class.");
+      } else {
+        setError("Assignment failed. Please check your inputs.");
+      }
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -79,6 +119,14 @@ const AssignSubject = ({ isOpen, onClose, classroomId, onSuccess }) => {
 
               {/* Form */}
               <div className="p-8 space-y-6">
+                
+                {/* Error Banner */}
+                {error && (
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-center gap-2 text-red-200 text-sm">
+                    <AlertCircle size={16} /> {error}
+                  </div>
+                )}
+
                 <form id="assign-form" onSubmit={handleSubmit} className="space-y-6">
                   
                   {/* Subject Selection */}
@@ -88,7 +136,7 @@ const AssignSubject = ({ isOpen, onClose, classroomId, onSuccess }) => {
                     </label>
                     <select 
                       required
-                      className="glass-input w-full p-4 rounded-2xl text-white bg-black/20 [&>option]:bg-slate-900 border border-white/10 focus:border-blue-500/50"
+                      className="glass-input w-full p-4 rounded-2xl text-white bg-black/20 [&>option]:bg-slate-900 border border-white/10 focus:border-blue-500/50 outline-none transition-all"
                       value={formData.subject}
                       onChange={(e) => setFormData({...formData, subject: e.target.value})}
                     >
@@ -97,8 +145,12 @@ const AssignSubject = ({ isOpen, onClose, classroomId, onSuccess }) => {
                         <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
                       ))}
                     </select>
+                    
+                    {/* Helper Text */}
                     {subjects.length === 0 && (
-                      <p className="text-xs text-red-400">No subjects found. Please create subjects in Academics first.</p>
+                      <p className="text-xs text-orange-400 mt-1">
+                        All available subjects are already assigned or none exist.
+                      </p>
                     )}
                   </div>
 
@@ -109,7 +161,7 @@ const AssignSubject = ({ isOpen, onClose, classroomId, onSuccess }) => {
                     </label>
                     <select 
                       required
-                      className="glass-input w-full p-4 rounded-2xl text-white bg-black/20 [&>option]:bg-slate-900 border border-white/10 focus:border-purple-500/50"
+                      className="glass-input w-full p-4 rounded-2xl text-white bg-black/20 [&>option]:bg-slate-900 border border-white/10 focus:border-purple-500/50 outline-none transition-all"
                       value={formData.teacher}
                       onChange={(e) => setFormData({...formData, teacher: e.target.value})}
                     >
@@ -130,8 +182,8 @@ const AssignSubject = ({ isOpen, onClose, classroomId, onSuccess }) => {
                 <button 
                   type="submit" 
                   form="assign-form"
-                  disabled={loading}
-                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all transform active:scale-95"
+                  disabled={loading || subjects.length === 0}
+                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all transform active:scale-95"
                 >
                   {loading ? 'Mapping...' : <><Save size={18} /> Confirm Allocation</>}
                 </button>

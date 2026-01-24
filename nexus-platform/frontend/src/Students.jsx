@@ -1,144 +1,134 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus } from 'lucide-react';
-import { useNavigate } from 'react-router-dom'; // <--- 1. Import Hook
+import { Search, Plus, UserX } from 'lucide-react'; // Added UserX for empty state
+import { useNavigate } from 'react-router-dom';
 import api from './api';
 import Dock from './Dock';
 import StudentCard from './StudentCard';
 import AddStudent from './AddStudent';
-// Removed: import StudentDetail (We don't render it here anymore)
+import { GlassInput, GlassButton, Skeleton } from './components/GlassUI'; // <--- IMPORT NEW UI KIT
 
 const Students = () => {
-  const navigate = useNavigate(); // <--- 2. Initialize Hook
-  
-  // --- State Management ---
+  const navigate = useNavigate();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  // Removed: const [selectedStudent, setSelectedStudent] ... (Not needed for page navigation)
 
-  // --- Data Fetching ---
   const fetchStudents = async () => {
     try {
       const response = await api.get('students/profiles/');
       setStudents(response.data);
-    } catch (error) {
-      console.error("Failed to fetch students:", error);
-    } finally {
-      setLoading(false);
-    }
+    } catch (error) { console.error("Failed to fetch students:", error); } 
+    finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    fetchStudents();
-  }, []);
+  useEffect(() => { fetchStudents(); }, []);
 
-  // --- Filter Logic ---
   const filteredStudents = students.filter(student => {
-    const firstName = student.user?.first_name || '';
-    const lastName = student.user?.last_name || '';
-    const fullName = `${firstName} ${lastName}`.toLowerCase();
+    const fullName = `${student.user?.first_name || ''} ${student.user?.last_name || ''}`.toLowerCase();
     const studentId = student.student_id?.toLowerCase() || '';
     const query = searchTerm.toLowerCase();
-
     return fullName.includes(query) || studentId.includes(query);
   });
 
-  return (
-    <div className="min-h-screen bg-black text-white pb-40 pt-10 px-6 md:px-12 relative overflow-x-hidden">
-      
-      {/* --- Background Ambience --- */}
-      <div className="fixed top-[-20%] left-[-10%] w-[600px] h-[600px] bg-blue-900/20 rounded-full blur-[100px] pointer-events-none"></div>
-      <div className="fixed bottom-[-20%] right-[-10%] w-[600px] h-[600px] bg-purple-900/20 rounded-full blur-[100px] pointer-events-none"></div>
+  // Stagger Animation Variant
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: { staggerChildren: 0.05 } // Delay between each item
+    }
+  };
 
-      {/* --- Header & Controls --- */}
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0 }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#050505] text-white pb-40 pt-10 px-6 md:px-12 relative overflow-x-hidden selection:bg-blue-500/30">
+      
+      {/* Background Ambience */}
+      <div className="fixed top-[-20%] left-[-10%] w-[600px] h-[600px] bg-blue-900/10 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="fixed bottom-[-20%] right-[-10%] w-[600px] h-[600px] bg-purple-900/10 rounded-full blur-[120px] pointer-events-none"></div>
+
+      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-center mb-12 gap-6 relative z-10">
         <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
-          <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">Student Directory</h1>
-          <p className="text-gray-400">Manage admission records and identity profiles</p>
+          <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-500 mb-2 tracking-tight">Student Directory</h1>
+          <p className="text-gray-400 font-medium">Manage admission records</p>
         </motion.div>
 
         <div className="flex items-center gap-4 w-full md:w-auto">
-          {/* Glass Search Bar */}
-          <div className="relative group w-full md:w-72">
-            <Search className="absolute left-4 top-3.5 text-gray-500 w-5 h-5 group-focus-within:text-blue-400 transition-colors" />
-            <input 
-              type="text" 
-              placeholder="Search by name or ID..." 
+          <div className="w-full md:w-72">
+            <GlassInput 
+              icon={Search} 
+              placeholder="Search students..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:outline-none focus:bg-white/10 focus:border-blue-500/50 transition-all placeholder-gray-600"
             />
           </div>
-
-          {/* Add Button */}
-          <motion.button 
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsAddModalOpen(true)}
-            className="bg-blue-600 hover:bg-blue-500 text-white p-3 rounded-2xl transition-all shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)] border border-white/10"
-          >
-            <Plus size={24} />
-          </motion.button>
+          <GlassButton onClick={() => setIsAddModalOpen(true)}>
+             <Plus size={20} /> <span className="hidden md:inline">Add New</span>
+          </GlassButton>
         </div>
       </div>
 
-      {/* --- The Grid --- */}
+      {/* Grid */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20">
-            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="text-gray-500 animate-pulse">Loading Identity Decks...</p>
+        // SKELETON LOADING STATE
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+           {[...Array(8)].map((_, i) => (
+             <Skeleton key={i} className="h-64 rounded-[2rem]" />
+           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 relative z-0">
-          <AnimatePresence>
+        <motion.div 
+          variants={containerVariants}
+          initial="hidden"
+          animate="show"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 relative z-0"
+        >
+          <AnimatePresence mode="popLayout">
             {filteredStudents.length > 0 ? (
               filteredStudents.map((student, index) => (
                 <motion.div 
-                  key={student.id || index}
+                  key={student.id}
+                  variants={itemVariants}
                   layout
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  // 3. FIXED: Navigate to the Profile Page
                   onClick={() => navigate(`/students/${student.id}`)}
                   className="cursor-pointer"
+                  whileHover={{ y: -5, transition: { duration: 0.2 } }}
                 >
                   <StudentCard student={student} index={index} />
                 </motion.div>
               ))
             ) : (
+              // EMPTY STATE
               <motion.div 
                 initial={{ opacity: 0 }} 
                 animate={{ opacity: 1 }}
-                className="col-span-full flex flex-col items-center justify-center py-20 text-center border border-dashed border-white/10 rounded-3xl bg-white/5"
+                className="col-span-full flex flex-col items-center justify-center py-24 text-center border border-dashed border-white/10 rounded-[2rem] bg-white/5"
               >
-                <p className="text-gray-400 text-lg mb-2">No students found.</p>
-                <p className="text-gray-600 text-sm">Try adjusting your search or add a new student.</p>
+                <div className="p-4 bg-white/5 rounded-full mb-4">
+                    <UserX size={32} className="text-gray-500" />
+                </div>
+                <p className="text-gray-400 text-lg font-bold">No students found</p>
+                <p className="text-gray-600 text-sm">Adjust your search or add a new student.</p>
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
+        </motion.div>
       )}
 
-      {/* --- Floating Navigation Dock --- */}
       <Dock />
-
-      {/* --- Modals --- */}
       
-      {/* 1. Add Student Sheet */}
       <AddStudent 
         isOpen={isAddModalOpen} 
         onClose={() => setIsAddModalOpen(false)}
-        onSuccess={() => {
-          fetchStudents(); // Refresh grid after adding
-        }} 
+        onSuccess={() => fetchStudents()} 
       />
-
-      {/* REMOVED: StudentDetail component (It is now a separate page) */}
 
     </div>
   );

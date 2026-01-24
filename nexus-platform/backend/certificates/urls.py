@@ -1,7 +1,10 @@
-from django.urls import path
-from .views import CertificateHistoryAPI, IssueCertificateAPI
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import IDCardViewSet
+
+router = DefaultRouter()
+router.register(r'logs', IDCardViewSet)
 
 urlpatterns = [
-    path('history/', CertificateHistoryAPI.as_view()),
-    path('issue/', IssueCertificateAPI.as_view()),
+    path('', include(router.urls)),
 ]

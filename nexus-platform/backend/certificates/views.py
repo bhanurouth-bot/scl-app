@@ -1,22 +1,16 @@
-from rest_framework import generics, status
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from .models import Certificate
-from .serializers import CertificateSerializer
+from rest_framework import viewsets, permissions
+from .models import IDCardLog, CertificateLog
+from .serializers import IDCardLogSerializer, CertificateLogSerializer
 
-class CertificateHistoryAPI(generics.ListAPIView):
-    queryset = Certificate.objects.all().order_by('-issued_at')
-    serializer_class = CertificateSerializer
-    permission_classes = [IsAuthenticated]
+class IDCardViewSet(viewsets.ModelViewSet):
+    queryset = IDCardLog.objects.all().order_by('-issued_at')
+    serializer_class = IDCardLogSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
-class IssueCertificateAPI(APIView):
-    permission_classes = [IsAuthenticated]
+class CertificateViewSet(viewsets.ModelViewSet):
+    queryset = CertificateLog.objects.all().order_by('-issued_at')
+    serializer_class = CertificateLogSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
-    def post(self, request):
-        # When you click "Print", the frontend calls this to log the action
-        serializer = CertificateSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save(issued_by=request.user)
-            return Response(serializer.data, status=201)
-        return Response(serializer.errors, status=400)
+    def perform_create(self, serializer):
+        serializer.save(issued_by=self.request.user)

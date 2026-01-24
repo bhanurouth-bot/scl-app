@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
-  LayoutGrid, Users, GraduationCap, 
-  CreditCard, FileText, 
-  Settings, LogOut, Briefcase 
+  LayoutGrid, Users, GraduationCap, CreditCard, FileText, 
+  Settings, LogOut, Briefcase, Library, ClipboardList, 
+  IdCard, Award, FileBarChart, BookOpen, Scroll, Calculator // <--- Both Icons imported
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -29,10 +29,7 @@ const Dock = () => {
   const location = useLocation();
   const [hoveredTab, setHoveredTab] = useState(null);
   
-  // Visibility State for "Mac-like" Auto-hide
   const [isVisible, setIsVisible] = useState(false);
-  
-  // Timer ref to handle smooth exit delays
   const [exitTimer, setExitTimer] = useState(null);
 
   const handleMouseEnter = () => {
@@ -41,7 +38,6 @@ const Dock = () => {
   };
 
   const handleMouseLeave = () => {
-    // Small delay (500ms) before hiding so it doesn't flicker if you slip
     const timer = setTimeout(() => {
         setIsVisible(false);
     }, 500);
@@ -51,10 +47,21 @@ const Dock = () => {
   const menuItems = [
     { icon: LayoutGrid, label: 'Dashboard', path: '/dashboard', animation: { rotate: 180 } },
     { icon: Users, label: 'Students', path: '/students', animation: { y: [0, -5, 0], transition: { repeat: Infinity, duration: 0.8 } } },
-    { icon: Briefcase, label: 'Staff', path: '/employees', animation: { rotate: [0, -15, 15, -15, 0], transition: { duration: 0.5 } } },
     { icon: GraduationCap, label: 'Academics', path: '/academics', animation: { scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] } },
+    { icon: BookOpen, label: 'Classes', path: '/classes' },
+    { icon: ClipboardList, label: 'Tasks', path: '/assignments' },
+    
+    // --- BOTH MODULES NOW VISIBLE ---
+    { icon: Scroll, label: 'Exams', path: '/exams', animation: { rotate: [0, 10, -10, 0] } },
+    { icon: Calculator, label: 'Grades', path: '/gradebook', animation: { scale: [1, 1.2, 1] } }, 
+
+    { icon: IdCard, label: 'ID Cards', path: '/id-cards', animation: { scaleX: [1, -1, 1], transition: { duration: 0.8 } } },
+    { icon: Award, label: 'Certificates', path: '/certificates', animation: { scale: [1, 1.2, 1] } },
+    { icon: FileBarChart, label: 'Reports', path: '/report-cards' },
+    { icon: Library, label: 'Library', path: '/library', animation: { scale: [1, 1.1, 1] } },
     { icon: CreditCard, label: 'Finance', path: '/finance', animation: { rotateY: 180, transition: { duration: 0.6 } } },
     { icon: DynamicCalendarIcon, label: 'Timetable', path: '/timetable', animation: { x: [0, -3, 3, -3, 0] } },
+    { icon: Briefcase, label: 'HR', path: '/hr', animation: { rotate: [0, -15, 15, -15, 0], transition: { duration: 0.5 } } },
     { icon: FileText, label: 'Notices', path: '/notices', animation: { rotate: [0, 10, 0] } },
   ];
 
@@ -66,13 +73,11 @@ const Dock = () => {
 
   return (
     <>
-      {/* 1. Trigger Zone (Invisible bar at bottom of screen) */}
       <div 
         className="fixed bottom-0 left-0 w-full h-6 z-50 bg-transparent"
         onMouseEnter={handleMouseEnter}
       />
 
-      {/* 2. The Dock Container */}
       <motion.div 
         className="fixed bottom-4 left-1/2 z-50 w-auto pointer-events-auto"
         initial={{ x: "-50%", y: 150 }} 
@@ -81,7 +86,6 @@ const Dock = () => {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        {/* Glass Panel */}
         <div className="glass-panel px-6 py-3 rounded-full flex items-center gap-3 shadow-2xl border border-white/20 backdrop-blur-2xl bg-black/40 relative">
           
           {menuItems.map((item) => {
@@ -93,7 +97,7 @@ const Dock = () => {
                 key={item.label}
                 onHoverStart={() => setHoveredTab(item.label)}
                 onHoverEnd={() => setHoveredTab(null)}
-                whileHover={{ scale: 1.2, y: -15 }} // Bounce up when hovered
+                whileHover={{ scale: 1.2, y: -15 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={() => navigate(item.path)}
                 className="relative group p-2"
@@ -105,7 +109,6 @@ const Dock = () => {
                   <item.icon size={20} className={`transition-colors ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-white'}`} />
                 </motion.div>
                 
-                {/* Tooltip */}
                 <AnimatePresence>
                   {isHovered && (
                     <motion.span 
@@ -147,7 +150,6 @@ const Dock = () => {
         </div>
       </motion.div>
       
-      {/* 3. Hint Bar (Home Indicator) - Visible when dock is hidden */}
       <AnimatePresence>
         {!isVisible && (
             <motion.div 

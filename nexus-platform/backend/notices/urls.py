@@ -1,7 +1,10 @@
-from django.urls import path
-from .views import NoticeListCreateAPI, NoticeDeleteAPI
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import NoticeViewSet
+
+router = DefaultRouter()
+router.register(r'posts', NoticeViewSet)
 
 urlpatterns = [
-    path('', NoticeListCreateAPI.as_view()),
-    path('<int:pk>/', NoticeDeleteAPI.as_view()),
+    path('', include(router.urls)),
 ]

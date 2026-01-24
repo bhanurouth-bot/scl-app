@@ -1,294 +1,414 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  ArrowLeft, User, Calendar, Droplet, Phone, Shield, 
-  MapPin, CheckCircle, XCircle, Clock, BookOpen, CreditCard,
-  FileText, Award
+  ArrowLeft, User, Phone, Mail, MapPin, Calendar, 
+  Shield, FileSignature, CheckCircle, 
+  Activity, Heart, FileText, Download, Plus,
+  PieChart, BarChart
 } from 'lucide-react';
 import api from './api';
 import Dock from './Dock';
+import SignaturePad from './SignaturePad';
+import { Skeleton } from './components/GlassUI'; // Ensure this path matches your structure
 
 const StudentDetail = () => {
-  const { id } = useParams(); // Retrieves ID from URL (e.g. /students/1)
+  const { id } = useParams();
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
   
-  // --- State ---
+  // --- Data States ---
   const [student, setStudent] = useState(null);
-  const [activeTab, setActiveTab] = useState('overview'); // overview | academics | attendance | finance
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('overview');
 
-  // Sub-Data State
-  const [attendance, setAttendance] = useState([]);
-  const [results, setResults] = useState([]);
-  const [invoices, setInvoices] = useState([]);
+  // --- Module Data ---
+  const [attendanceStats, setAttendanceStats] = useState(null);
+  const [examResults, setExamResults] = useState([]);
+  
+  // --- Action States ---
+  const [isUploading, setIsUploading] = useState(false);
+  const [showSigPad, setShowSigPad] = useState(false);
+  const [sigType, setSigType] = useState(null); // 'student' or 'guardian'
+  const [refreshKey, setRefreshKey] = useState(Date.now()); // To force image refresh after sign
 
-  // --- Fetch All Data ---
+  // --- Initial Fetch ---
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true);
-        // 1. Fetch Basic Profile
-        const stuRes = await api.get(`students/profiles/${id}/`);
-        setStudent(stuRes.data);
-
-        // 2. Parallel Fetch for Tabs
-        // Note: These endpoints must be supported by your backend views
-        const [attRes, resRes, invRes] = await Promise.all([
-            api.get(`attendance/records/?student=${id}`),
-            api.get(`exams/results/?student=${id}`),
-            api.get(`finance/invoices/?student=${id}`)
-        ]);
-
-        setAttendance(attRes.data);
-        setResults(resRes.data);
-        setInvoices(invRes.data);
-
-      } catch (err) {
-        console.error("Profile Load Error", err);
-      } finally {
-        setLoading(false);
-      }
+    const fetchAll = async () => {
+        try {
+            // Parallel fetch for speed
+            const [stuRes, attRes, resRes] = await Promise.all([
+                api.get(`students/profiles/${id}/`),
+                api.get(`attendance/stats/${id}/`).catch(() => ({ data: null })), 
+                api.get(`results/report-cards/?student=${id}`).catch(() => ({ data: [] }))
+            ]);
+            setStudent(stuRes.data);
+            setAttendanceStats(attRes.data);
+            setExamResults(resRes.data);
+        } catch(err) { 
+            console.error("Failed to load profile", err); 
+        } finally { 
+            setLoading(false); 
+        }
     };
-    
-    if (id) loadData();
+    fetchAll();
   }, [id]);
 
-  // --- Helpers ---
-  const calculateAttendance = () => {
-    if (attendance.length === 0) return 0;
-    const present = attendance.filter(r => r.status === 'PRESENT' || r.status === 'LATE').length;
-    return Math.round((present / attendance.length) * 100);
-  };
-  
-  const getGradeColor = (grade) => {
-    if(['A+', 'A', 'A-'].includes(grade)) return 'text-green-400';
-    if(['B+', 'B', 'B-', 'C+', 'C'].includes(grade)) return 'text-yellow-400';
-    return 'text-red-400';
+  // --- Handlers ---
+
+  const handleOpenSigPad = (type) => {
+    setSigType(type);
+    setShowSigPad(true);
   };
 
-  if (loading) return (
-    <div className="min-h-screen bg-[#050505] flex items-center justify-center text-white">
-        <div className="flex flex-col items-center">
-            <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="text-gray-500 animate-pulse">Loading Student Profile...</p>
-        </div>
-    </div>
-  );
+  const handleSaveSignature = async (file) => {
+    const formData = new FormData();
+    const fieldName = sigType === 'student' ? 'student_signature' : 'guardian_signature';
+    formData.append(fieldName, file);
 
-  if (!student) return (
-    <div className="min-h-screen bg-[#050505] flex items-center justify-center text-white">
-        <div className="text-center">
-            <h2 className="text-2xl font-bold text-gray-400">Student Not Found</h2>
-            <button onClick={() => navigate('/students')} className="mt-4 text-blue-400 hover:underline">Return to Directory</button>
-        </div>
-    </div>
-  );
+    try {
+      await api.patch(`students/profiles/${id}/`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      
+      // Refresh local data
+      const res = await api.get(`students/profiles/${id}/`);
+      setStudent(res.data);
+      setRefreshKey(Date.now()); // Force image reload
+      setShowSigPad(false);
+    } catch (err) {
+      alert("Failed to save signature.");
+    }
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const title = prompt("Enter Document Title (e.g., Birth Certificate):");
+    if (!title) return;
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('student', id);
+    formData.append('title', title);
+    formData.append('file', file);
+
+    try {
+        await api.post('students/documents/', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        // Refresh to see new doc
+        const res = await api.get(`students/profiles/${id}/`);
+        setStudent(res.data);
+    } catch (err) {
+        alert("Upload Failed. Ensure Document API is ready.");
+        console.error(err);
+    } finally {
+        setIsUploading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#050505] text-white pb-40 pt-10 px-6 md:px-12 relative overflow-x-hidden selection:bg-blue-500/30">
-       
-       {/* Ambient Background */}
-       <div className="fixed top-[-10%] right-[-10%] w-[900px] h-[900px] bg-blue-900/10 rounded-full blur-[120px] pointer-events-none mix-blend-screen"></div>
+      
+      {/* Background Ambience */}
+      <div className="fixed top-[-10%] left-[-10%] w-[900px] h-[900px] bg-blue-900/10 rounded-full blur-[120px] pointer-events-none mix-blend-screen"></div>
 
-       {/* --- Header Section --- */}
-       <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-6 relative z-10">
-        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
-          <button onClick={() => navigate('/students')} className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors group">
-             <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" /> Back to Directory
-          </button>
-          
-          <div className="flex items-center gap-6">
-              {/* Avatar */}
-              <div className="w-24 h-24 rounded-[2rem] bg-gradient-to-br from-gray-700 to-black flex items-center justify-center text-4xl font-bold text-white border border-white/10 shadow-2xl">
-                  {student.user.first_name[0]}
-              </div>
-              
-              {/* Identity Info */}
-              <div>
-                  <h1 className="text-4xl font-bold text-white tracking-tight">{student.user.first_name} {student.user.last_name}</h1>
-                  <p className="text-blue-400 font-mono mt-1 text-sm md:text-base">
-                    ID: {student.student_id} <span className="mx-2 text-gray-600">|</span> Roll: {student.roll_number}
-                  </p>
-                  
-                  {student.classroom_details && (
-                    <div className="flex items-center gap-2 mt-3 text-xs font-bold text-gray-300 bg-white/10 px-3 py-1.5 rounded-lg w-fit border border-white/5">
-                        <BookOpen size={14} /> 
-                        Grade {student.classroom_details.grade_level} - {student.classroom_details.section}
-                    </div>
-                  )}
-              </div>
-          </div>
-        </motion.div>
+      {/* --- HEADER --- */}
+      <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
+        <button 
+          onClick={() => navigate('/students')}
+          className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors group"
+        >
+           <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" /> Back to Students
+        </button>
 
-        {/* Quick Stats Cards */}
-        <div className="flex gap-4">
-            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-center min-w-[110px]">
-                <div className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Attendance</div>
-                <div className={`text-2xl font-bold mt-1 ${calculateAttendance() < 75 ? 'text-red-400' : 'text-green-400'}`}>
-                    {calculateAttendance()}%
+        <div className="flex flex-col md:flex-row gap-8 items-start mb-8">
+            {/* Avatar */}
+            {loading ? (
+                <Skeleton className="w-32 h-32 rounded-full border-4 border-white/10" />
+            ) : (
+                <div className="w-32 h-32 rounded-full border-4 border-white/10 overflow-hidden bg-gray-800 shadow-2xl relative">
+                    <img 
+                      src={student.profile_picture || `https://ui-avatars.com/api/?name=${student.user.first_name}+${student.user.last_name}&background=random`} 
+                      alt="Profile" 
+                      className="w-full h-full object-cover"
+                    />
                 </div>
-            </div>
-            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-center min-w-[110px]">
-                <div className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Invoices</div>
-                <div className="text-2xl font-bold text-white mt-1">{invoices.length}</div>
+            )}
+            
+            {/* Name & ID */}
+            <div className="space-y-2">
+                {loading ? (
+                    <>
+                        <Skeleton className="h-10 w-64 rounded-xl bg-white/10" />
+                        <Skeleton className="h-6 w-40 rounded-lg bg-white/5" />
+                    </>
+                ) : (
+                    <>
+                        <h1 className="text-5xl font-bold text-white mb-2">{student.user.first_name} {student.user.last_name}</h1>
+                        <div className="flex items-center gap-4 text-gray-400">
+                            <span className="bg-blue-600/20 text-blue-400 px-3 py-1 rounded-full text-xs font-bold border border-blue-600/30">
+                                {student.student_id}
+                            </span>
+                            <span className="flex items-center gap-1 text-sm">
+                                <User size={14} /> Grade {student.classroom_details?.grade_level || 'N/A'} - {student.classroom_details?.section || 'A'}
+                            </span>
+                        </div>
+                    </>
+                )}
             </div>
         </div>
-      </div>
 
-      {/* --- Navigation Tabs --- */}
-      <div className="flex gap-2 mb-8 border-b border-white/10 pb-0 overflow-x-auto no-scrollbar">
-          {['overview', 'academics', 'attendance', 'finance'].map(tab => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-6 py-4 rounded-t-2xl font-bold text-sm transition-all capitalize relative ${
-                    activeTab === tab 
-                    ? 'text-white bg-white/5 border-t border-x border-white/10' 
-                    : 'text-gray-500 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                  {tab}
-                  {activeTab === tab && <div className="absolute bottom-[-1px] left-0 w-full h-1 bg-[#050505]"></div>}
-              </button>
-          ))}
-      </div>
+        {/* --- NAVIGATION TABS --- */}
+        <div className="flex gap-4 border-b border-white/10 pb-1 mb-8 overflow-x-auto custom-scrollbar">
+            <TabButton active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} icon={User} label="Overview" />
+            <TabButton active={activeTab === 'attendance'} onClick={() => setActiveTab('attendance')} icon={PieChart} label="Attendance" />
+            <TabButton active={activeTab === 'results'} onClick={() => setActiveTab('results')} icon={BarChart} label="Results" />
+            <TabButton active={activeTab === 'health'} onClick={() => setActiveTab('health')} icon={Heart} label="Health" />
+            <TabButton active={activeTab === 'docs'} onClick={() => setActiveTab('docs')} icon={FileText} label="Documents" />
+        </div>
+      </motion.div>
 
-      {/* --- Tab Content Area --- */}
+      {/* --- TAB CONTENT AREA --- */}
       <div className="relative z-10 min-h-[400px]">
           <AnimatePresence mode="wait">
             
             {/* 1. OVERVIEW TAB */}
-            {activeTab === 'overview' && (
+            {activeTab === 'overview' && !loading && (
                 <motion.div 
-                    key="overview"
-                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                    className="grid grid-cols-1 md:grid-cols-2 gap-6"
+                    key="overview" 
+                    initial={{ opacity: 0, y: 10 }} 
+                    animate={{ opacity: 1, y: 0 }} 
+                    exit={{ opacity: 0, y: -10 }} 
+                    className="grid grid-cols-1 lg:grid-cols-3 gap-8"
                 >
-                    <div className="glass-panel p-8 rounded-[2rem] border border-white/10 bg-white/5">
-                        <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
-                            <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400"><User size={20}/></div>
-                            Personal Details
-                        </h3>
-                        <div className="space-y-6">
-                            <InfoRow label="Gender" value={student.gender === 'M' ? 'Male' : student.gender === 'F' ? 'Female' : 'Other'} />
-                            <InfoRow label="Date of Birth" value={student.date_of_birth} icon={<Calendar size={14}/>} />
-                            <InfoRow label="Blood Group" value={student.blood_group || "N/A"} icon={<Droplet size={14}/>} />
-                        </div>
+                    <div className="space-y-6">
+                        <SectionCard title="Personal Details" icon={User}>
+                            <InfoRow label="Date of Birth" value={student.date_of_birth} icon={Calendar} />
+                            <InfoRow label="Gender" value={student.gender} icon={User} />
+                            <InfoRow label="Blood Group" value={student.blood_group || 'N/A'} icon={Activity} />
+                        </SectionCard>
+                        <SectionCard title="Address" icon={MapPin}>
+                            <div className="text-sm text-gray-300 leading-relaxed mb-2">
+                               {student.address || "No primary address set."}
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 mt-2">
+                                <InfoRow label="City" value={student.city} icon={MapPin} />
+                                <InfoRow label="Zip" value={student.zip_code} icon={MapPin} />
+                            </div>
+                        </SectionCard>
                     </div>
 
-                    <div className="glass-panel p-8 rounded-[2rem] border border-white/10 bg-white/5">
-                        <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
-                            <div className="p-2 bg-orange-500/20 rounded-lg text-orange-400"><Shield size={20}/></div>
-                            Guardian Info
-                        </h3>
-                        <div className="space-y-6">
-                            <InfoRow label="Guardian Name" value={student.guardian_name} />
-                            <InfoRow label="Phone Contact" value={student.guardian_phone} icon={<Phone size={14}/>} />
-                            <InfoRow label="Address" value={student.address || "No address on file"} icon={<MapPin size={14}/>} />
+                    <div className="space-y-6">
+                        <SectionCard title="Guardian Details" icon={Shield}>
+                            <InfoRow label="Guardian Name" value={student.guardian_name} icon={User} />
+                            <InfoRow label="Relationship" value={student.guardian_relation} icon={Shield} />
+                            <InfoRow label="Contact" value={student.guardian_phone} icon={Phone} />
+                            <InfoRow label="Email" value={student.guardian_email} icon={Mail} />
+                        </SectionCard>
+                    </div>
+
+                    <div className="space-y-6">
+                        <div className="glass-panel p-6 rounded-[2rem] border border-white/10 bg-white/5">
+                            <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                                <FileSignature size={20} className="text-blue-400"/> Digital Signatures
+                            </h3>
+                            <div className="space-y-6">
+                                <SignatureBlock label="Student Signature" url={student.student_signature ? `${student.student_signature}?t=${refreshKey}` : null} onClick={() => handleOpenSigPad('student')} />
+                                <SignatureBlock label="Guardian Signature" url={student.guardian_signature ? `${student.guardian_signature}?t=${refreshKey}` : null} onClick={() => handleOpenSigPad('guardian')} />
+                            </div>
                         </div>
                     </div>
                 </motion.div>
             )}
 
-            {/* 2. ACADEMICS TAB (Exams) */}
-            {activeTab === 'academics' && (
-                <motion.div key="academics" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                    <div className="grid grid-cols-1 gap-4">
-                        {results.length === 0 && (
-                            <div className="text-center py-20 border border-dashed border-white/10 rounded-3xl text-gray-500">
-                                No exam records found for this student.
-                            </div>
-                        )}
-                        {results.map(res => (
-                            <div key={res.id} className="glass-panel p-6 rounded-3xl border border-white/10 bg-white/5 flex justify-between items-center group hover:bg-white/10 transition-colors">
-                                <div className="flex items-center gap-4">
-                                    <div className="p-3 bg-purple-500/20 text-purple-400 rounded-xl">
-                                        <Award size={24} />
-                                    </div>
-                                    <div>
-                                        <div className="text-xs text-gray-500 uppercase font-bold mb-1">Exam Result</div>
-                                        <div className="text-xl font-bold text-white">
-                                            {/* We assume the backend expands 'exam' or we display ID. Ideally expand in serializer */}
-                                            Exam #{res.exam} 
-                                        </div>
-                                        <div className="text-sm text-gray-400">Score: {res.marks_obtained}</div>
-                                    </div>
-                                </div>
-                                <div className={`text-4xl font-bold ${getGradeColor(res.grade)} bg-black/20 px-6 py-3 rounded-2xl border border-white/5`}>
-                                    {res.grade || '-'}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </motion.div>
-            )}
-
-            {/* 3. ATTENDANCE TAB */}
+            {/* 2. ATTENDANCE TAB */}
             {activeTab === 'attendance' && (
-                <motion.div key="attendance" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                        {attendance.length === 0 && (
-                             <div className="col-span-full text-center py-20 text-gray-500">No attendance records found.</div>
-                        )}
-                        {attendance.map(att => (
-                             <div key={att.id} className={`p-4 rounded-2xl border flex flex-col items-center justify-center gap-2 ${
-                                att.status === 'PRESENT' ? 'bg-green-500/10 border-green-500/20' :
-                                att.status === 'ABSENT' ? 'bg-red-500/10 border-red-500/20' :
-                                'bg-yellow-500/10 border-yellow-500/20'
-                             }`}>
-                                 <span className="text-xs font-mono text-gray-400">{att.session_date || 'Date'}</span>
-                                 <span className={`font-bold flex items-center gap-1 ${
-                                     att.status === 'PRESENT' ? 'text-green-400' :
-                                     att.status === 'ABSENT' ? 'text-red-400' : 'text-yellow-400'
-                                 }`}>
-                                     {att.status === 'PRESENT' && <CheckCircle size={14}/>}
-                                     {att.status === 'ABSENT' && <XCircle size={14}/>}
-                                     {att.status === 'LATE' && <Clock size={14}/>}
-                                     {att.status}
-                                 </span>
-                             </div>
-                        ))}
-                    </div>
+                <motion.div 
+                    key="attendance" 
+                    initial={{ opacity: 0, y: 10 }} 
+                    animate={{ opacity: 1, y: 0 }} 
+                    exit={{ opacity: 0, y: -10 }} 
+                    className="grid grid-cols-1 md:grid-cols-2 gap-8"
+                >
+                   <div className="glass-panel p-8 rounded-[2rem] border border-white/10 bg-white/5 flex flex-col items-center justify-center">
+                      <h3 className="text-xl font-bold text-white mb-6">Attendance Overview</h3>
+                      {attendanceStats ? (
+                          <div className="w-64 h-64 relative">
+                               <div className="absolute inset-0 rounded-full border-8 border-green-500/20 flex items-center justify-center">
+                                  <div className="text-center">
+                                      <div className="text-4xl font-bold text-white">{attendanceStats.percentage}%</div>
+                                      <div className="text-sm text-gray-400">Present</div>
+                                  </div>
+                               </div>
+                               {/* CSS SVG Pie Chart */}
+                               <svg className="w-full h-full rotate-[-90deg]" viewBox="0 0 100 100">
+                                  <circle cx="50" cy="50" r="46" fill="none" stroke="#10b981" strokeWidth="8" strokeDasharray={`${attendanceStats.percentage * 2.89} 289`} strokeLinecap="round" />
+                               </svg>
+                          </div>
+                      ) : (
+                          <div className="text-gray-500 text-center py-10">
+                              <PieChart size={40} className="mx-auto mb-2 opacity-50"/>
+                              No attendance data available.
+                          </div>
+                      )}
+                   </div>
+                   
+                   <div className="glass-panel p-8 rounded-[2rem] border border-white/10 bg-white/5">
+                      <h3 className="text-xl font-bold text-white mb-6">Recent History</h3>
+                      <div className="space-y-3">
+                          {attendanceStats?.history?.slice(0, 5).map((rec, i) => (
+                               <div key={i} className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5">
+                                   <span className="text-gray-300 font-mono text-sm">{rec.date}</span>
+                                   <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${rec.status === 'PRESENT' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                       {rec.status}
+                                   </span>
+                               </div>
+                          )) || <div className="text-gray-500 italic">No records found.</div>}
+                      </div>
+                   </div>
                 </motion.div>
             )}
 
-            {/* 4. FINANCE TAB */}
-            {activeTab === 'finance' && (
-                <motion.div key="finance" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                    <div className="grid grid-cols-1 gap-4">
-                        {invoices.length === 0 && (
-                            <div className="text-center py-20 border border-dashed border-white/10 rounded-3xl text-gray-500">
-                                No financial records found.
+            {/* 3. RESULTS TAB */}
+            {activeTab === 'results' && (
+                <motion.div 
+                    key="results" 
+                    initial={{ opacity: 0, y: 10 }} 
+                    animate={{ opacity: 1, y: 0 }} 
+                    exit={{ opacity: 0, y: -10 }} 
+                    className="space-y-6"
+                >
+                    {examResults.length > 0 ? (
+                        examResults.map((result, idx) => (
+                            <div key={idx} className="glass-panel p-6 rounded-[2rem] border border-white/10 bg-white/5">
+                                <div className="flex justify-between items-start mb-6 border-b border-white/10 pb-4">
+                                    <div>
+                                        <h3 className="text-2xl font-bold text-white">{result.exam_name}</h3>
+                                        <p className="text-gray-400 text-sm">Published: {new Date(result.published_date).toLocaleDateString()}</p>
+                                    </div>
+                                    <div className={`text-3xl font-bold ${result.grade === 'F' ? 'text-red-500' : 'text-green-400'}`}>
+                                        {result.percentage}% <span className="text-lg text-gray-500">({result.grade})</span>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {result.subjects.map((sub, sIdx) => (
+                                        <div key={sIdx} className="p-4 bg-black/20 rounded-xl border border-white/5 flex justify-between items-center">
+                                            <span className="font-bold text-gray-300">{sub.subject_name}</span>
+                                            <div className="text-right">
+                                                <div className="font-mono text-white font-bold">{sub.marks_obtained}/{sub.total_marks}</div>
+                                                <div className={`text-[10px] font-bold ${sub.grade === 'F' ? 'text-red-400' : 'text-green-400'}`}>{sub.grade}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="text-center py-20 text-gray-500 border border-dashed border-white/10 rounded-[2rem] bg-white/5">
+                            <BarChart size={40} className="mx-auto mb-4 opacity-50"/>
+                            <p>No exam results published yet.</p>
+                        </div>
+                    )}
+                </motion.div>
+            )}
+
+            {/* 4. HEALTH TAB */}
+            {activeTab === 'health' && (
+                <motion.div 
+                    key="health" 
+                    initial={{ opacity: 0, y: 10 }} 
+                    animate={{ opacity: 1, y: 0 }} 
+                    exit={{ opacity: 0, y: -10 }} 
+                    className="grid grid-cols-1 md:grid-cols-2 gap-8"
+                >
+                    <SectionCard title="Medical Profile" icon={Activity}>
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            <InfoRow label="Height (cm)" value={student.medical_profile?.height_cm} icon={Activity} />
+                            <InfoRow label="Weight (kg)" value={student.medical_profile?.weight_kg} icon={Activity} />
+                        </div>
+                        <div className="space-y-4 pt-4 border-t border-white/5">
+                            <div>
+                                <label className="text-xs text-red-400 uppercase font-bold">Allergies</label>
+                                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-200 mt-1">
+                                    {student.medical_profile?.allergies || "No known allergies."}
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-xs text-blue-400 uppercase font-bold">Medications</label>
+                                <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-sm text-blue-200 mt-1">
+                                    {student.medical_profile?.medications || "No current medications."}
+                                </div>
+                            </div>
+                        </div>
+                    </SectionCard>
+                    <SectionCard title="Emergency Contacts" icon={Phone}>
+                         <InfoRow label="Doctor Name" value={student.medical_profile?.doctor_name} icon={User} />
+                         <InfoRow label="Doctor Phone" value={student.medical_profile?.doctor_phone} icon={Phone} />
+                         <div className="mt-4 pt-4 border-t border-white/5">
+                            <InfoRow label="Emergency Contact" value={student.medical_profile?.emergency_contact_name} icon={Shield} />
+                            <InfoRow label="Emergency Phone" value={student.medical_profile?.emergency_contact_phone} icon={Phone} />
+                         </div>
+                    </SectionCard>
+                </motion.div>
+            )}
+
+            {/* 5. DOCUMENTS TAB (With Upload) */}
+            {activeTab === 'docs' && (
+                <motion.div 
+                    key="docs" 
+                    initial={{ opacity: 0, y: 10 }} 
+                    animate={{ opacity: 1, y: 0 }} 
+                    exit={{ opacity: 0, y: -10 }} 
+                    className="space-y-6"
+                >
+                    <div className="flex justify-end">
+                        <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            className="hidden" 
+                            onChange={handleFileUpload}
+                        />
+                        <button 
+                            onClick={() => fileInputRef.current.click()}
+                            disabled={isUploading}
+                            className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg disabled:opacity-50 border border-white/10"
+                        >
+                            {isUploading ? <span className="animate-spin">⏳</span> : <Plus size={18}/>}
+                            Upload Document
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {student.documents?.length > 0 ? (
+                            student.documents.map((doc, idx) => (
+                                <div key={idx} className="glass-panel p-6 rounded-[1.5rem] border border-white/10 bg-white/5 hover:border-blue-500/30 transition-all group relative">
+                                    <div className="absolute top-4 right-4 bg-white/10 p-2 rounded-full text-blue-400">
+                                        <FileText size={20} />
+                                    </div>
+                                    <h4 className="font-bold text-white mb-1 truncate pr-10">{doc.title}</h4>
+                                    <p className="text-xs text-gray-500 mb-6 font-mono">
+                                        {new Date(doc.uploaded_at).toLocaleDateString()}
+                                    </p>
+                                    
+                                    <a 
+                                        href={doc.file} 
+                                        target="_blank" 
+                                        rel="noreferrer" 
+                                        className="flex items-center justify-center gap-2 w-full py-3 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-bold text-gray-300 hover:text-white transition-all"
+                                    >
+                                        <Download size={16}/> Download
+                                    </a>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="col-span-full py-20 text-center border border-dashed border-white/10 rounded-[2rem] bg-white/5">
+                                <FileText size={48} className="mx-auto mb-4 text-gray-600 opacity-50"/>
+                                <p className="text-gray-500">No documents uploaded yet.</p>
                             </div>
                         )}
-                        {invoices.map(inv => (
-                            <div 
-                                key={inv.id} 
-                                onClick={() => navigate('/finance')}
-                                className="glass-panel p-6 rounded-3xl border border-white/10 bg-white/5 flex flex-col md:flex-row justify-between items-center hover:bg-white/10 transition-colors cursor-pointer group"
-                            >
-                                <div className="flex items-center gap-5 w-full md:w-auto">
-                                    <div className={`p-4 rounded-2xl ${inv.status === 'PAID' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                                        <CreditCard size={24}/>
-                                    </div>
-                                    <div>
-                                        <div className="font-mono text-sm text-gray-500 mb-1">{inv.invoice_number}</div>
-                                        <div className="font-bold text-xl text-white">Tuition / General Fee</div>
-                                        <div className="text-xs text-gray-400 mt-1">Due Date: {inv.due_date}</div>
-                                    </div>
-                                </div>
-                                
-                                <div className="text-right mt-4 md:mt-0 w-full md:w-auto pl-20 md:pl-0">
-                                    <div className="font-bold text-3xl text-white">${inv.total_amount}</div>
-                                    <div className={`text-xs font-bold uppercase tracking-wider mt-1 px-2 py-1 rounded-lg w-fit ml-auto ${
-                                        inv.status === 'PAID' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
-                                    }`}>
-                                        {inv.status}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
                     </div>
                 </motion.div>
             )}
@@ -297,17 +417,75 @@ const StudentDetail = () => {
       </div>
 
       <Dock />
+
+      {/* --- SIGNATURE MODAL --- */}
+      <AnimatePresence>
+        {showSigPad && (
+            <SignaturePad 
+                title={sigType === 'student' ? "Student Signature" : "Guardian Signature"}
+                onSave={handleSaveSignature}
+                onClose={() => setShowSigPad(false)}
+            />
+        )}
+      </AnimatePresence>
+
     </div>
   );
 };
 
-// Simple Row Component for Details
-const InfoRow = ({ label, value, icon }) => (
-    <div className="flex justify-between items-center border-b border-white/5 pb-4 last:border-0 last:pb-0 group">
-        <span className="text-sm text-gray-500 flex items-center gap-2 group-hover:text-blue-400 transition-colors">
-            {icon} {label}
-        </span>
-        <span className="text-white font-medium text-right">{value}</span>
+// --- HELPER COMPONENTS ---
+
+const TabButton = ({ active, onClick, icon: Icon, label }) => (
+    <button 
+        onClick={onClick} 
+        className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all whitespace-nowrap ${active ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+    >
+        <Icon size={18} /> {label}
+    </button>
+);
+
+const SectionCard = ({ title, icon: Icon, children }) => (
+    <div className="glass-panel p-6 rounded-[2rem] border border-white/10 bg-white/5 h-full">
+        <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+            <Icon size={20} className="text-blue-400"/> {title}
+        </h3>
+        <div className="space-y-4">
+            {children}
+        </div>
+    </div>
+);
+
+const InfoRow = ({ label, value, icon: Icon }) => (
+    <div className="flex items-center gap-4 border-b border-white/5 pb-3 last:border-0 last:pb-0">
+        <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-gray-400">
+            <Icon size={14} />
+        </div>
+        <div>
+            <div className="text-[10px] text-gray-500 uppercase font-bold">{label}</div>
+            <div className="text-sm font-medium text-white">{value || 'N/A'}</div>
+        </div>
+    </div>
+);
+
+const SignatureBlock = ({ label, url, onClick }) => (
+    <div>
+        <div className="flex justify-between items-center mb-2 px-1">
+            <label className="text-xs text-gray-500 uppercase font-bold tracking-wider">{label}</label>
+            {url && <CheckCircle size={12} className="text-green-500"/>}
+        </div>
+        <div 
+            onClick={onClick}
+            className={`h-28 rounded-xl border-2 border-dashed flex items-center justify-center cursor-pointer transition-all relative overflow-hidden group ${url ? 'border-blue-500/30 bg-blue-500/5' : 'border-white/10 hover:border-white/30 hover:bg-white/5'}`}
+        >
+            {url ? (
+                <img src={url} alt="Signature" className="h-20 object-contain opacity-80" />
+            ) : (
+                <div className="flex flex-col items-center text-gray-600 group-hover:text-gray-400">
+                    <FileSignature size={24} className="mb-2"/>
+                    <span className="text-xs font-bold">Tap to Sign</span>
+                </div>
+            )}
+        </div>
     </div>
 );
 

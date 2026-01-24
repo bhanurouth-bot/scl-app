@@ -1,38 +1,42 @@
 from django.db import models
+from django.conf import settings
 from core.models import Classroom
 from academics.models import Subject
-from django.conf import settings # Links to User (Teacher)
 
 class Assignment(models.Model):
     title = models.CharField(max_length=200)
-    description = models.TextField()
+    description = models.TextField(blank=True)
     
-    # Who is this for? (Replaces old 'grade'/'section' strings)
     classroom = models.ForeignKey(Classroom, on_delete=models.CASCADE, related_name='assignments')
-    subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='assignments')
     
-    # Who assigned it?
-    teacher = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    # 1. Who created/assigned this task?
+    teacher = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='created_assignments')
     
-    due_date = models.DateTimeField()
-    created_at = models.DateTimeField(auto_now_add=True)
+    # 2. Who is supposed to check/grade this task? (New Feature)
+    grader = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='assignments_to_grade')
+    
+    assigned_date = models.DateField(auto_now_add=True)
+    due_date = models.DateField()
+    total_marks = models.PositiveIntegerField(default=100)
+    
+    attachment = models.FileField(upload_to='assignments/', blank=True, null=True)
 
     def __str__(self):
-        return f"{self.title} - {self.classroom}"
+        return f"{self.title} - {self.subject.name}"
+
+    class Meta:
+        ordering = ['-assigned_date']
 
 class Submission(models.Model):
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE, related_name='submissions')
     student = models.ForeignKey('students.Student', on_delete=models.CASCADE)
     
-    # For now, we store a link. Later use models.FileField
-    file_link = models.URLField(blank=True, max_length=500)
-    
     submitted_at = models.DateTimeField(auto_now_add=True)
-    grade = models.CharField(max_length=5, blank=True) # e.g. "A", "80/100"
+    file = models.FileField(upload_to='submissions/', blank=True, null=True)
+    
+    marks_obtained = models.PositiveIntegerField(null=True, blank=True)
     feedback = models.TextField(blank=True)
 
     class Meta:
-        unique_together = ('assignment', 'student')
-
-    def __str__(self):
-        return f"{self.student.first_name} - {self.assignment.title}"
+        unique_together = ['assignment', 'student']

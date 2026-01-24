@@ -10,6 +10,14 @@ class Book(models.Model):
     available_copies = models.IntegerField(default=1)
     cover_image = models.URLField(default="https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=300")
     
+    # --- FIX START ---
+    def save(self, *args, **kwargs):
+        # On creation (no ID yet), if available_copies is default, sync it with total
+        if not self.pk: 
+            self.available_copies = self.total_copies
+        super().save(*args, **kwargs)
+    # --- FIX END ---
+
     def __str__(self):
         return self.title
 

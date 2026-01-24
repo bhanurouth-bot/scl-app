@@ -6,38 +6,45 @@ import { AnimatePresence } from 'framer-motion';
 import Login from './Login';
 import PrivateRoute from './PrivateRoute';
 
-// --- Modules ---
+// --- Core Modules ---
 import Dashboard from './Dashboard';
-import Students from './Students';
-import StudentDetail from './StudentDetail'; // <--- Ensure this is imported
+import Dock from './Dock';
+import Timetable from './Timetable';
+import Notices from './Notices';  // <--- IMPORTED REAL COMPONENT
 
-// Academics
+// --- Students Module ---
+import Students from './Students';
+import StudentDetail from './StudentDetail';
+
+// --- Academics Module ---
 import Academics from './Academics';
 import ClassroomDetail from './ClassroomDetail';
 import Subjects from './Subjects'; 
 
-// HR & Staff
-import Employees from './Employees';
+// --- Exams Module ---
+import Exams from './Exams';
+import ExamDetail from './ExamDetail';
 
-// Finance
+// --- Attendance Module ---
+import Attendance from './Attendance';
+
+// --- HR Module ---
+import HR from './HR';
+
+// --- Finance Module ---
 import Finance from './Finance';
 import FeeStructures from './FeeStructures';
 import FeeHeads from './FeeHeads';
+import Assignments from './Assignments';
+import AssignmentDetail from './AssignmentDetail';
 
-// Scheduling
-import Timetable from './Timetable';
-import Exams from './Exams';        // <--- Add if missing
-import ExamDetail from './ExamDetail'; // <--- Add if missing
-import Attendance from './Attendance';
-
-import Dock from './Dock';
-
-const Notices = () => (
-  <div className="min-h-screen bg-[#050505] text-white flex flex-col items-center justify-center">
-    <h1 className="text-4xl font-bold text-gray-500 mb-4">Notices</h1>
-    <Dock />
-  </div>
-);
+// --- Library Module ---
+import Library from './Library';
+import IDCardGenerator from './IDCardGenerator';
+import Certificates from './Certificates';
+import Gradebook from './Gradebook';
+import ReportCards from './ReportCards';
+import Classes from './Classes';
 
 const AppLayout = ({ children }) => {
   return (
@@ -53,41 +60,53 @@ const App = () => {
     <Router>
       <AnimatePresence mode="wait">
         <Routes>
+          {/* Public Route */}
           <Route path="/" element={<Login />} />
 
           {/* --- DASHBOARD --- */}
           <Route path="/dashboard" element={<PrivateRoute><AppLayout><Dashboard /></AppLayout></PrivateRoute>} />
 
-          {/* --- STUDENTS MODULE --- */}
+          {/* --- NOTICES (New) --- */}
+          <Route path="/notices" element={<PrivateRoute><AppLayout><Notices /></AppLayout></PrivateRoute>} />
+
+          {/* --- STUDENTS --- */}
           <Route path="/students" element={<PrivateRoute><AppLayout><Students /></AppLayout></PrivateRoute>} />
-          
-          {/* NEW: Student Profile Route */}
           <Route path="/students/:id" element={<PrivateRoute><AppLayout><StudentDetail /></AppLayout></PrivateRoute>} />
 
-          {/* --- ACADEMICS MODULE --- */}
+          {/* --- ACADEMICS --- */}
           <Route path="/academics" element={<PrivateRoute><AppLayout><Academics /></AppLayout></PrivateRoute>} />
           <Route path="/academics/:id" element={<PrivateRoute><AppLayout><ClassroomDetail /></AppLayout></PrivateRoute>} />
           <Route path="/subjects" element={<PrivateRoute><AppLayout><Subjects /></AppLayout></PrivateRoute>} />
 
-          {/* --- EXAMS MODULE --- */}
+          {/* --- EXAMS --- */}
           <Route path="/exams" element={<PrivateRoute><AppLayout><Exams /></AppLayout></PrivateRoute>} />
           <Route path="/exams/:id" element={<PrivateRoute><AppLayout><ExamDetail /></AppLayout></PrivateRoute>} />
 
-          {/* --- ATTENDANCE MODULE --- */}
+          {/* --- ATTENDANCE --- */}
           <Route path="/attendance" element={<PrivateRoute><AppLayout><Attendance /></AppLayout></PrivateRoute>} />
 
-          {/* --- HR MODULE --- */}
-          <Route path="/employees" element={<PrivateRoute><AppLayout><Employees /></AppLayout></PrivateRoute>} />
+          {/* --- LIBRARY --- */}
+          <Route path="/library" element={<PrivateRoute><AppLayout><Library /></AppLayout></PrivateRoute>} />
 
-          {/* --- FINANCE MODULE --- */}
+          {/* --- HR / STAFF --- */}
+          <Route path="/hr" element={<HR />} />
+
+          {/* --- FINANCE --- */}
           <Route path="/finance" element={<PrivateRoute><AppLayout><Finance /></AppLayout></PrivateRoute>} />
           <Route path="/finance/structures" element={<PrivateRoute><AppLayout><FeeStructures /></AppLayout></PrivateRoute>} />
           <Route path="/finance/heads" element={<PrivateRoute><AppLayout><FeeHeads /></AppLayout></PrivateRoute>} />
 
           {/* --- TIMETABLE --- */}
           <Route path="/timetable" element={<PrivateRoute><AppLayout><Timetable /></AppLayout></PrivateRoute>} />
+          <Route path="/assignments" element={<PrivateRoute><AppLayout><Assignments /></AppLayout></PrivateRoute>} />
+          <Route path="/assignments/:id" element={<PrivateRoute><AppLayout><AssignmentDetail /></AppLayout></PrivateRoute>} />
+          <Route path="/id-cards" element={<PrivateRoute><AppLayout><IDCardGenerator /></AppLayout></PrivateRoute>} />
+          <Route path="/certificates" element={<PrivateRoute><AppLayout><Certificates /></AppLayout></PrivateRoute>} />
+          <Route path="/gradebook" element={<PrivateRoute><AppLayout><Gradebook /></AppLayout></PrivateRoute>} />
+          <Route path="/report-cards" element={<PrivateRoute><AppLayout><ReportCards /></AppLayout></PrivateRoute>} />
+          <Route path="/classes" element={<PrivateRoute><AppLayout><Classes /></AppLayout></PrivateRoute>} />
 
-          <Route path="/notices" element={<PrivateRoute><AppLayout><Notices /></AppLayout></PrivateRoute>} />
+          {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
           
         </Routes>

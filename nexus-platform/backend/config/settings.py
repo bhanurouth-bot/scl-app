@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     'visitors',
     'health',
     'timetable',
+    'results',
 ]
 
 MIDDLEWARE = [

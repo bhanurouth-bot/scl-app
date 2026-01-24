@@ -1,10 +1,12 @@
-import React from 'react';
-import Dock from './Dock';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { TrendingUp, Users, AlertCircle, Clock, CalendarCheck } from 'lucide-react';
+import { TrendingUp, Users, AlertCircle, Clock, CalendarCheck, BookOpen, Bell, Activity } from 'lucide-react';
+import api from './api';
+import Dock from './Dock';
+import { Skeleton } from './components/GlassUI'; // <--- Import Shared UI
 
-// Reusable "Live Tile" Component
-const StatCard = ({ title, value, subtitle, icon: Icon, color, delay }) => (
+// Reusable "Live Tile" Component with Skeleton support
+const StatCard = ({ title, value, subtitle, icon: Icon, color, delay, loading }) => (
   <motion.div 
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
@@ -19,30 +21,69 @@ const StatCard = ({ title, value, subtitle, icon: Icon, color, delay }) => (
         <Icon size={24} className="text-white" />
       </div>
       <h3 className="text-gray-400 text-sm font-medium mb-1 tracking-wide">{title}</h3>
-      <h2 className="text-4xl font-bold text-white mb-2 tracking-tight">{value}</h2>
+      
+      {loading ? (
+        <Skeleton className="h-10 w-24 mb-2 bg-white/10" />
+      ) : (
+        <h2 className="text-4xl font-bold text-white mb-2 tracking-tight">{value}</h2>
+      )}
+      
       <p className="text-xs text-gray-500 font-medium group-hover:text-gray-300 transition-colors">{subtitle}</p>
     </div>
   </motion.div>
 );
 
 const Dashboard = () => {
+  const [loading, setLoading] = useState(true);
+  
+  // Data States
+  const [studentCount, setStudentCount] = useState(0);
+  const [financeStats, setFinanceStats] = useState({ total_revenue: 0, collected: 0, pending: 0 });
+  const [notices, setNotices] = useState([]);
+  
+  // Format Currency
+  const fmt = (amt) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amt || 0);
+
+  useEffect(() => {
+    const loadDashboardData = async () => {
+      try {
+        const [stuRes, finRes, noticeRes] = await Promise.all([
+          api.get('students/profiles/'),      
+          api.get('finance/invoices/stats/'), 
+          api.get('notices/posts/')           
+        ]);
+
+        setStudentCount(stuRes.data.length);
+        setFinanceStats(finRes.data);
+        setNotices(noticeRes.data.slice(0, 3)); 
+
+      } catch (err) {
+        console.error("Dashboard Sync Failed:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDashboardData();
+  }, []);
+
   return (
-    <div className="min-h-screen bg-black text-white pb-40 pt-10 px-6 md:px-12 relative overflow-x-hidden">
+    <div className="min-h-screen bg-[#050505] text-white pb-40 pt-10 px-6 md:px-12 relative overflow-x-hidden selection:bg-blue-500/30">
       
       {/* Background Ambience */}
       <div className="fixed top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-black to-black -z-10"></div>
-      <div className="fixed top-[-20%] right-[-10%] w-[800px] h-[800px] bg-blue-600/20 rounded-full blur-[120px] pointer-events-none"></div>
-      <div className="fixed bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-purple-600/20 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="fixed top-[-20%] right-[-10%] w-[800px] h-[800px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="fixed bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none"></div>
 
       {/* Header Section */}
       <motion.div 
         initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
-        className="mb-12 flex justify-between items-end"
+        className="mb-12 flex justify-between items-end relative z-10"
       >
         <div>
-          <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-500 mb-2">Command Center</h1>
-          <p className="text-gray-400 text-lg">Overview of Nexus Institute Activity</p>
+          <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-500 mb-2 tracking-tight">Command Center</h1>
+          <p className="text-gray-400 text-lg">Nexus Institute Overview</p>
         </div>
         <div className="text-right hidden md:block">
           <p className="text-gray-500 text-sm uppercase tracking-widest font-bold">Current Session</p>
@@ -50,94 +91,121 @@ const Dashboard = () => {
         </div>
       </motion.div>
 
-      {/* Bento Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 relative z-10">
+        
         <StatCard 
           title="Total Students" 
-          value="1,240" 
-          subtitle="+45 new admissions" 
+          value={studentCount} 
+          loading={loading}
+          subtitle="Active Enrollments" 
           icon={Users} 
           color="bg-blue-500" 
           delay={0.1}
         />
+        
         <StatCard 
-          title="Monthly Revenue" 
-          value="$84.2k" 
-          subtitle="Tuition & Transport fees" 
+          title="Total Revenue" 
+          value={fmt(financeStats.total_revenue)} 
+          loading={loading}
+          subtitle={`Collected: ${fmt(financeStats.collected)}`} 
           icon={TrendingUp} 
           color="bg-emerald-500" 
           delay={0.2}
         />
-        <StatCard 
-          title="Attendance" 
-          value="94%" 
-          subtitle="Average across all grades" 
-          icon={Clock} 
-          color="bg-violet-500" 
-          delay={0.3}
-        />
+        
         <StatCard 
           title="Pending Dues" 
-          value="18" 
-          subtitle="Students with overdue fees" 
+          value={fmt(financeStats.pending)} 
+          loading={loading}
+          subtitle="Outstanding Fees" 
           icon={AlertCircle} 
           color="bg-rose-500" 
+          delay={0.3}
+        />
+
+        <StatCard 
+          title="Avg Attendance" 
+          value="94%" 
+          loading={false} // Static for now
+          subtitle="Daily Average" 
+          icon={Clock} 
+          color="bg-violet-500" 
           delay={0.4}
         />
       </div>
 
-      {/* Content Area (Asymmetrical Grid) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Content Area */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10">
         
-        {/* Big Analytics Card */}
+        {/* Quick Actions / Chart Placeholder */}
         <motion.div 
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.5 }}
-          className="glass-panel p-8 rounded-[2rem] lg:col-span-2 min-h-[400px] border border-white/10"
+          className="glass-panel p-8 rounded-[2rem] lg:col-span-2 min-h-[400px] border border-white/10 flex flex-col justify-between"
         >
           <div className="flex justify-between items-center mb-8">
-            <h3 className="text-xl font-semibold text-white">Financial Performance</h3>
-            <select className="bg-black/40 border border-white/10 text-gray-300 text-sm rounded-lg px-4 py-2 outline-none">
-              <option>This Semester</option>
-              <option>Last Semester</option>
-            </select>
+            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <BookOpen className="text-blue-400" /> Academic Overview
+            </h3>
+            <span className="text-xs font-bold bg-white/10 px-3 py-1 rounded-full text-gray-400">Live Updates</span>
           </div>
           
-          {/* Placeholder for Chart */}
-          <div className="h-64 w-full rounded-2xl border-2 border-dashed border-white/10 flex items-center justify-center text-gray-600 bg-white/5">
-            [Chart.js / Recharts Component Will Go Here]
+          <div className="h-64 w-full rounded-3xl border-2 border-dashed border-white/5 flex flex-col items-center justify-center text-gray-600 bg-black/20 gap-4">
+            <div className="p-4 rounded-full bg-white/5"><Activity size={32} /></div>
+            <p>Performance Analytics Visualization</p>
           </div>
         </motion.div>
 
-        {/* Notices / Feed Card */}
+        {/* Live Notices Feed */}
         <motion.div 
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.6 }}
-          className="glass-panel p-8 rounded-[2rem] border border-white/10"
+          className="glass-panel p-8 rounded-[2rem] border border-white/10 bg-white/5"
         >
-          <h3 className="text-xl font-semibold text-white mb-6">Live Notices</h3>
+          <div className="flex justify-between items-center mb-6">
+             <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <Bell className="text-yellow-400" /> Notice Board
+             </h3>
+          </div>
+
           <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="p-4 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors cursor-pointer border border-white/5 group">
-                <div className="flex justify-between items-start mb-2">
-                  <div className="flex items-center gap-2">
-                    <CalendarCheck size={14} className="text-blue-400" />
-                    <span className="text-xs font-bold text-blue-400">ACADEMIC</span>
-                  </div>
-                  <span className="text-xs text-gray-500">2h ago</span>
+            {loading ? (
+                // Notice Skeletons
+                [...Array(3)].map((_, i) => (
+                    <div key={i} className="p-5 rounded-[1.5rem] bg-black/20 border border-white/5">
+                        <Skeleton className="h-3 w-20 mb-3 bg-white/10" />
+                        <Skeleton className="h-5 w-3/4 mb-2 bg-white/10" />
+                        <Skeleton className="h-3 w-full bg-white/5" />
+                    </div>
+                ))
+            ) : notices.length === 0 ? (
+                <div className="text-gray-500 text-center py-10 bg-white/5 rounded-2xl border border-dashed border-white/10">
+                    No active notices.
                 </div>
-                <p className="text-sm text-gray-300 group-hover:text-white transition-colors">
-                  Final exams for Grade 12 have been rescheduled to next Monday.
-                </p>
-              </div>
-            ))}
+            ) : (
+                notices.map((notice) => (
+                  <div key={notice.id} className="p-5 rounded-[1.5rem] bg-black/20 hover:bg-white/5 transition-all cursor-pointer border border-white/5 group relative overflow-hidden">
+                    <div className="flex justify-between items-start mb-2 relative z-10">
+                      <div className="flex items-center gap-2">
+                        <CalendarCheck size={14} className="text-blue-400" />
+                        <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">{notice.category}</span>
+                      </div>
+                      <span className="text-[10px] text-gray-500 font-mono">{new Date(notice.created_at).toLocaleDateString()}</span>
+                    </div>
+                    <h4 className="font-bold text-white mb-1 group-hover:text-blue-200 transition-colors relative z-10">{notice.title}</h4>
+                    <p className="text-xs text-gray-400 line-clamp-2 relative z-10">
+                      {notice.content}
+                    </p>
+                  </div>
+                ))
+            )}
           </div>
         </motion.div>
       </div>
 
-      {/* The Floating Navigation */}
       <Dock />
     </div>
   );
