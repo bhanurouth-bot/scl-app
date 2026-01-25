@@ -1,17 +1,19 @@
-# backend/config/urls.py
 from django.conf import settings
 from django.contrib import admin
-from django.urls import path, include
-from core.views import CookieTokenObtainPairView, CookieTokenRefreshView, LogoutView
+from django.urls import path, include, re_path
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
 from django.conf.urls.static import static
+from core.views import index # Import the index view
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     
-    # --- Authentication (Cookies) ---
-    path('api/token/', CookieTokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', CookieTokenRefreshView.as_view(), name='token_refresh'),
-    path('api/logout/', LogoutView.as_view(), name='logout'),
+    # --- Authentication (JWT) ---
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
     # --- Core Modules ---
     path('api/core/', include('core.urls')),
@@ -34,6 +36,10 @@ urlpatterns = [
     path('api/health/', include('health.urls')),
     path('api/results/', include('results.urls')),
     path('api/transport/', include('transport.urls')),
+    
+    # --- Serve React Frontend (Catch-All) ---
+    # Matches any path that doesn't start with 'api/' or 'admin/'
+    re_path(r'^(?!api|admin).*$', index, name='index'),
 ]
 
 if settings.DEBUG:

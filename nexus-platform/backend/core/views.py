@@ -1,56 +1,39 @@
-# backend/core/views.py
+import re # <--- Import Regex
 from rest_framework import viewsets, status, views
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from django.conf import settings
+from django.shortcuts import render
+from django.views.decorators.csrf import ensure_csrf_cookie
 from .models import User, SchoolSettings, AcademicYear, Classroom
 from .serializers import (
     UserSerializer, SchoolSettingsSerializer, 
     AcademicYearSerializer, ClassroomSerializer
 )
 
-# --- Custom Auth Views ---
-
+# --- 1. Custom Auth Views (Cookie-Based) ---
 class CookieTokenObtainPairView(TokenObtainPairView):
     def finalize_response(self, request, response, *args, **kwargs):
         if response.data.get('access'):
-            # Set Access Token Cookie
             response.set_cookie(
-                'access_token',
-                response.data['access'],
-                max_age=3600, # 60 minutes
-                httponly=True,
-                samesite='Lax',
-                secure=False, # Set to True in production (HTTPS)
+                'access_token', response.data['access'],
+                max_age=3600, httponly=True, samesite='Lax', secure=False,
             )
-            # Set Refresh Token Cookie
             response.set_cookie(
-                'refresh_token',
-                response.data['refresh'],
-                max_age=86400, # 1 day
-                httponly=True,
-                samesite='Lax',
-                secure=False, # Set to True in production
+                'refresh_token', response.data['refresh'],
+                max_age=86400, httponly=True, samesite='Lax', secure=False,
             )
-            # Remove tokens from body to keep it clean (optional)
             del response.data['access']
             del response.data['refresh']
-            
         return super().finalize_response(request, response, *args, **kwargs)
 
 class CookieTokenRefreshView(TokenRefreshView):
     def finalize_response(self, request, response, *args, **kwargs):
         if response.data.get('access'):
             response.set_cookie(
-                'access_token',
-                response.data['access'],
-                max_age=3600,
-                httponly=True,
-                samesite='Lax',
-                secure=False,
+                'access_token', response.data['access'],
+                max_age=3600, httponly=True, samesite='Lax', secure=False,
             )
             del response.data['access']
-        
         return super().finalize_response(request, response, *args, **kwargs)
 
 class LogoutView(views.APIView):
@@ -60,7 +43,39 @@ class LogoutView(views.APIView):
         response.delete_cookie('refresh_token')
         return response
 
-# --- Existing ViewSets ---
+# --- 2. Serve React App (With CSP Nonce Injection) ---
+@ensure_csrf_cookie
+def index(request):
+    """
+    Serves the React frontend and injects the CSP nonce 
+    into the script tags so 'strict-dynamic' accepts them.
+    """
+    response = render(request, 'index.html')
+    
+    # Check if CSP middleware generated a nonce
+    nonce = getattr(request, 'csp_nonce', None)
+    
+    # DEBUG PRINT: Check your terminal for this line when you refresh the page
+    print(f"DEBUG: CSP Nonce generated: {nonce}") 
+
+    if nonce:
+        content = response.content.decode('utf-8')
+        
+        # FIX: Added a space after the nonce attribute to prevent merging with other attributes
+        # Replaces '<script' with '<script nonce="...random..." '
+        content_with_nonce = re.sub(
+            r'<script', 
+            f'<script nonce="{nonce}" ', 
+            content, 
+            flags=re.IGNORECASE
+        )
+        
+        # Update response content
+        response.content = content_with_nonce.encode('utf-8')
+        
+    return response
+
+# --- 3. ViewSets ---
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
