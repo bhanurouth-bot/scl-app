@@ -3,12 +3,14 @@ from .models import IDCardLog, CertificateLog
 from .serializers import IDCardLogSerializer, CertificateLogSerializer
 
 class IDCardViewSet(viewsets.ModelViewSet):
-    queryset = IDCardLog.objects.all().order_by('-issued_at')
+    # OPTIMIZATION
+    queryset = IDCardLog.objects.select_related('student', 'student__user').all().order_by('-issued_at')
     serializer_class = IDCardLogSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 class CertificateViewSet(viewsets.ModelViewSet):
-    queryset = CertificateLog.objects.all().order_by('-issued_at')
+    # OPTIMIZATION
+    queryset = CertificateLog.objects.select_related('student', 'student__user', 'issued_by').all().order_by('-issued_at')
     serializer_class = CertificateLogSerializer
     permission_classes = [permissions.IsAuthenticated]
 

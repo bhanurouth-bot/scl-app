@@ -8,7 +8,12 @@ from .serializers import AttendanceSessionSerializer, AttendanceBulkUpdateSerial
 from hr.models import Employee
 
 class AttendanceSessionViewSet(viewsets.ModelViewSet):
-    queryset = AttendanceSession.objects.all().order_by('-date')
+    # OPTIMIZATION: Who took the attendance and for which class?
+    queryset = AttendanceSession.objects.select_related(
+        'classroom', 
+        'taken_by', 
+        'taken_by__user'
+    ).prefetch_related('records').all()
     serializer_class = AttendanceSessionSerializer
     permission_classes = [permissions.IsAuthenticated]
 

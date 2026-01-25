@@ -4,11 +4,13 @@ from .models import HealthRecord, ClinicVisit
 from .serializers import HealthRecordSerializer, ClinicVisitSerializer
 
 class HealthRecordListCreateAPI(generics.ListCreateAPIView):
-    queryset = HealthRecord.objects.all()
+    # OPTIMIZATION
+    queryset = HealthRecord.objects.select_related('student', 'student__user').all()
     serializer_class = HealthRecordSerializer
     permission_classes = [IsAuthenticated]
 
 class ClinicVisitListCreateAPI(generics.ListCreateAPIView):
-    queryset = ClinicVisit.objects.all().order_by('-visit_date')
+    # OPTIMIZATION
+    queryset = ClinicVisit.objects.select_related('student', 'student__user').all().order_by('-visit_date')
     serializer_class = ClinicVisitSerializer
     permission_classes = [IsAuthenticated]

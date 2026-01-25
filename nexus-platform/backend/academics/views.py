@@ -7,5 +7,13 @@ class SubjectViewSet(viewsets.ModelViewSet):
     serializer_class = SubjectSerializer
 
 class SubjectAllocationViewSet(viewsets.ModelViewSet):
-    queryset = SubjectAllocation.objects.all()
+    # OPTIMIZATION: Fetch ALL related foreign keys in one go.
+    # 'teacher__user' allows us to display the Teacher's name without an extra query.
+    queryset = SubjectAllocation.objects.select_related(
+        'academic_year', 
+        'classroom', 
+        'subject', 
+        'teacher', 
+        'teacher__user'
+    ).all()
     serializer_class = SubjectAllocationSerializer

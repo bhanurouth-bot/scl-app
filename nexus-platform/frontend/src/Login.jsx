@@ -9,7 +9,6 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
-  // Hook for redirection
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
@@ -18,25 +17,18 @@ const Login = () => {
     setError('');
 
     try {
-      // 1. Send Credentials to Django Backend
-      // The backend will now set HttpOnly cookies for 'access_token' and 'refresh_token'
-      await api.post('token/', {
-        username,
-        password
-      });
+      await api.post('token/', { username, password });
 
+      // --- ADD THESE LINES IF MISSING ---
       console.log("Login Success");
+      localStorage.setItem('isAuthenticated', 'true'); // <--- CRITICAL
+      // ----------------------------------
 
-      // 2. NO LOCALSTORAGE STORAGE HERE (Fixed XSS Vulnerability)
-      // localStorage.setItem('access_token', response.data.access); <--- REMOVED
-      // localStorage.setItem('refresh_token', response.data.refresh); <--- REMOVED
-
-      // 3. Redirect to the Dashboard
       navigate('/dashboard');
 
     } catch (err) {
       console.error("Login Error:", err);
-      setError('Invalid credentials. Please try again.');
+      setError('Invalid credentials.');
     } finally {
       setLoading(false);
     }
@@ -45,17 +37,12 @@ const Login = () => {
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-black">
       
-      {/* --- Vibrant Background Blobs (Mac OS Style) --- */}
-      {/* Purple Blob */}
+      {/* Background Blobs */}
       <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-600 rounded-full mix-blend-screen filter blur-[80px] opacity-40 animate-blob"></div>
-      
-      {/* Yellow/Orange Blob */}
       <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-yellow-600 rounded-full mix-blend-screen filter blur-[80px] opacity-40 animate-blob animation-delay-2000"></div>
-      
-      {/* Pink/Red Blob */}
       <div className="absolute -bottom-32 left-[20%] w-[500px] h-[500px] bg-pink-600 rounded-full mix-blend-screen filter blur-[80px] opacity-40 animate-blob animation-delay-4000"></div>
 
-      {/* --- The Glass Card --- */}
+      {/* Glass Card */}
       <div className="glass-panel relative z-10 p-10 rounded-2xl shadow-2xl w-full max-w-md border border-white/10">
         
         <div className="text-center mb-10">
@@ -64,8 +51,6 @@ const Login = () => {
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6">
-          
-          {/* Username Input */}
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <User className="h-5 w-5 text-gray-400" />
@@ -80,7 +65,6 @@ const Login = () => {
             />
           </div>
 
-          {/* Password Input */}
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Lock className="h-5 w-5 text-gray-400" />

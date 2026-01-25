@@ -2,16 +2,12 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db import transaction
-from decimal import Decimal  # <--- IMPORT ADDED
+from decimal import Decimal
 from datetime import datetime, timedelta
 from .models import Employee, Department, Designation, LeaveRequest, SalarySlip, StaffAttendance
 from .serializers import (
-    EmployeeSerializer, 
-    EmployeeRegistrationSerializer,
-    DepartmentSerializer,
-    DesignationSerializer,
-    LeaveRequestSerializer,
-    SalarySlipSerializer,
+    EmployeeSerializer, EmployeeRegistrationSerializer, DepartmentSerializer,
+    DesignationSerializer, LeaveRequestSerializer, SalarySlipSerializer,
     StaffAttendanceSerializer
 )
 
@@ -24,7 +20,10 @@ class DesignationViewSet(viewsets.ModelViewSet):
     serializer_class = DesignationSerializer
 
 class EmployeeViewSet(viewsets.ModelViewSet):
-    queryset = Employee.objects.all()
+    # OPTIMIZATION: Fetch User, Department, Designation and Subjects (M2M)
+    queryset = Employee.objects.select_related(
+        'user', 'department', 'designation'
+    ).prefetch_related('subjects').all()
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -32,7 +31,10 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         return EmployeeSerializer
 
 class LeaveRequestViewSet(viewsets.ModelViewSet):
-    queryset = LeaveRequest.objects.all().order_by('-applied_on')
+    # OPTIMIZATION: Fetch Employee and Approver details
+    queryset = LeaveRequest.objects.select_related(
+        'employee', 'employee__user', 'approved_by', 'approved_by__user'
+    ).all().order_by('-applied_on')
     serializer_class = LeaveRequestSerializer
 
     @action(detail=True, methods=['post'])
@@ -52,23 +54,18 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         return Response({'status': 'rejected'})
 
 class StaffAttendanceViewSet(viewsets.ModelViewSet):
-    queryset = StaffAttendance.objects.all().order_by('-date')
+    # OPTIMIZATION: Fetch Employee
+    queryset = StaffAttendance.objects.select_related('employee', 'employee__user').all().order_by('-date')
     serializer_class = StaffAttendanceSerializer
 
     @action(detail=False, methods=['post'])
     def bulk_mark(self, request):
-        """
-        Expects: { "date": "2025-01-20", "attendance": [ {"employee": 1, "status": "PRESENT"}, ... ] }
-        """
         date = request.data.get('date')
         attendance_list = request.data.get('attendance', [])
-        
         if not date: return Response({"error": "Date required"}, status=400)
 
         with transaction.atomic():
-            # Delete existing records for this date to avoid duplicates
             StaffAttendance.objects.filter(date=date).delete()
-            
             serializer = self.get_serializer(data=[{**item, 'date': date} for item in attendance_list], many=True)
             if serializer.is_valid():
                 serializer.save()
@@ -76,18 +73,15 @@ class StaffAttendanceViewSet(viewsets.ModelViewSet):
             return Response(serializer.errors, status=400)
 
 class SalarySlipViewSet(viewsets.ModelViewSet):
-    queryset = SalarySlip.objects.all().order_by('-end_date')
+    # OPTIMIZATION: Fetch Employee
+    queryset = SalarySlip.objects.select_related('employee', 'employee__user').all().order_by('-end_date')
     serializer_class = SalarySlipSerializer
 
     @action(detail=False, methods=['post'])
     def generate_range(self, request):
-        """
-        Smart Payroll Generation based on Attendance & Leaves
-        Expects: { "start_date": "2025-01-01", "end_date": "2025-01-15" }
-        """
+        """ Smart Payroll Generation based on Attendance & Leaves """
         start_str = request.data.get('start_date')
         end_str = request.data.get('end_date')
-        
         if not start_str or not end_str:
             return Response({"error": "Start and End dates required"}, status=400)
 
@@ -101,43 +95,31 @@ class SalarySlipViewSet(viewsets.ModelViewSet):
         generated_count = 0
 
         for emp in employees:
-            # 1. Calculate Attendance Stats in Range
+            # 1. Calculate Attendance Stats
             attendance_records = StaffAttendance.objects.filter(
                 employee=emp, date__range=[start_date, end_date]
             )
-            
             present_days = attendance_records.filter(status='PRESENT').count()
             half_days = attendance_records.filter(status='HALF_DAY').count()
             
             # 2. Calculate Approved Paid Leaves
             leave_records = LeaveRequest.objects.filter(
-                employee=emp, 
-                status='APPROVED',
+                employee=emp, status='APPROVED',
                 leave_type__in=['PAID', 'SICK', 'CASUAL'], 
-                start_date__gte=start_date, 
-                end_date__lte=end_date
+                start_date__gte=start_date, end_date__lte=end_date
             )
-            
             leave_days_count = 0
             for leave in leave_records:
-                # Simple logic: assume dates fall strictly within range
-                # In production, check overlap logic
                 duration = (leave.end_date - leave.start_date).days + 1
                 leave_days_count += duration
 
-            # 3. Final Calculation (Using Decimal for Money Safety)
-            # Logic: (Present + 0.5 * HalfDay + Leaves)
+            # 3. Final Calculation
             effective_worked_days = Decimal(present_days) + (Decimal("0.5") * Decimal(half_days)) + Decimal(leave_days_count)
-            
-            # Per Day Salary (Standard 30-day month assumption)
             per_day_salary = emp.basic_salary / Decimal(30)
-            
             earned_amount = per_day_salary * effective_worked_days
             
-            # Delete existing slip for this period if exists
             SalarySlip.objects.filter(employee=emp, start_date=start_date, end_date=end_date).delete()
 
-            # Create Slip
             SalarySlip.objects.create(
                 employee=emp,
                 start_date=start_date,

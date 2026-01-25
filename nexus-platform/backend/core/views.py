@@ -77,7 +77,8 @@ def index(request):
 
 # --- 3. ViewSets ---
 class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.all()
+    # Optimizing User fetch usually requires prefetching groups/permissions if used
+    queryset = User.objects.prefetch_related('groups', 'user_permissions').all()
     serializer_class = UserSerializer
 
 class SchoolSettingsViewSet(viewsets.ModelViewSet):
@@ -89,5 +90,6 @@ class AcademicYearViewSet(viewsets.ModelViewSet):
     serializer_class = AcademicYearSerializer
 
 class ClassroomViewSet(viewsets.ModelViewSet):
-    queryset = Classroom.objects.all()
+    # OPTIMIZATION: Fetch Academic Year in the same query
+    queryset = Classroom.objects.select_related('academic_year').all()
     serializer_class = ClassroomSerializer

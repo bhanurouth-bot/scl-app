@@ -1,17 +1,12 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Outlet } from 'react-router-dom';
 
-const PrivateRoute = ({ children }) => {
-  // Check for authentication token
-  const isAuthenticated = !!localStorage.getItem('access_token');
+const PrivateRoute = () => {
+  // Check the simple flag we set during login in Login.jsx
+  const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
 
-  if (!isAuthenticated) {
-    // Redirect to Login if not authenticated
-    return <Navigate to="/" replace />;
-  }
-
-  // Render child component if authenticated
-  return children;
+  // If true, render the child routes (Dashboard). If false, go to Login.
+  return isAuthenticated ? <Outlet /> : <Navigate to="/" replace />;
 };
 
 export default PrivateRoute;

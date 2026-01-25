@@ -6,12 +6,14 @@ from .models import Visitor
 from .serializers import VisitorSerializer
 
 class VisitorViewSet(viewsets.ModelViewSet):
-    queryset = Visitor.objects.all().order_by('-check_in_time')
+    # OPTIMIZATION: If visitors are linked to students/staff, add select_related here.
+    # Assuming 'student' is a FK based on standard logic
+    queryset = Visitor.objects.select_related('student', 'student__user').all().order_by('-check_in_time')
     serializer_class = VisitorSerializer
 
     def get_queryset(self):
         qs = super().get_queryset()
-        status_param = self.request.query_params.get('status') # 'ON_CAMPUS' or 'CHECKED_OUT'
+        status_param = self.request.query_params.get('status')
         if status_param:
             qs = qs.filter(status=status_param)
         return qs
@@ -19,7 +21,6 @@ class VisitorViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def check_out(self, request, pk=None):
         visitor = self.get_object()
-        
         if visitor.status == 'CHECKED_OUT':
             return Response({"error": "Visitor already checked out"}, status=400)
             

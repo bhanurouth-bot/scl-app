@@ -13,17 +13,19 @@ class StudentViewSet(viewsets.ModelViewSet):
     API endpoint that allows students to be viewed, created, or edited.
     Supports advanced filtering, searching, and ordering.
     """
-    queryset = Student.objects.all().order_by('-admission_date')
+    # OPTIMIZATION: Join User and Classroom tables to prevent N+1 queries
+    queryset = Student.objects.select_related(
+        'user', 
+        'classroom', 
+        'classroom__academic_year'
+    ).all().order_by('-admission_date')
+    
     parser_classes = (parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser)
 
-    # --- ENHANCEMENT: Search & Filter Engines ---
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     
-    # 1. Exact Filters: /api/students/profiles/?classroom=1&gender=Male
     filterset_fields = ['classroom', 'gender', 'blood_group', 'city']
     
-    # 2. Fuzzy Search: /api/students/profiles/?search=John
-    # Searches across ID, Name, and Guardian details
     search_fields = [
         'student_id', 
         'user__first_name', 
@@ -33,7 +35,6 @@ class StudentViewSet(viewsets.ModelViewSet):
         'guardian_phone'
     ]
     
-    # 3. Ordering: /api/students/profiles/?ordering=user__first_name
     ordering_fields = ['student_id', 'admission_date', 'user__first_name', 'user__last_name']
 
     def get_serializer_class(self):
@@ -45,9 +46,9 @@ class StudentViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         """
-        Optionally restricts the returned students to a given classroom,
-        by filtering against a `classroom` query parameter in the URL.
+        Optionally restricts the returned students to a given classroom.
         """
+        # We use the optimized queryset defined above
         qs = super().get_queryset()
         classroom = self.request.query_params.get('classroom')
         if classroom:
@@ -55,7 +56,8 @@ class StudentViewSet(viewsets.ModelViewSet):
         return qs
 
 class StudentDocumentViewSet(viewsets.ModelViewSet):
-    queryset = StudentDocument.objects.all()
+    # OPTIMIZATION: Fetch Student and their User info
+    queryset = StudentDocument.objects.select_related('student', 'student__user').all()
     serializer_class = StudentDocumentSerializer
     parser_classes = (parsers.MultiPartParser, parsers.FormParser)
 

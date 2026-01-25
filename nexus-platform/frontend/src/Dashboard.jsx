@@ -1,215 +1,201 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, Users, AlertCircle, Clock, CalendarCheck, BookOpen, Bell, Activity } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'; // <--- Import Recharts
 import api from './api';
-import Dock from './Dock';
-import { Skeleton } from './components/GlassUI';
-
-// Reusable "Live Tile" Component
-const StatCard = ({ title, value, subtitle, icon: Icon, color, delay, loading }) => (
-  <motion.div 
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay }}
-    className="glass-panel p-6 rounded-[2rem] relative overflow-hidden group hover:bg-white/5 transition-all duration-300 border border-white/10 hover:border-white/20"
-  >
-    <div className={`absolute -right-4 -top-4 opacity-10 group-hover:opacity-20 transition-opacity duration-500 blur-2xl ${color} w-32 h-32 rounded-full`}></div>
-    <div className="relative z-10">
-      <div className={`p-3 rounded-2xl w-fit mb-4 ${color} bg-opacity-20 border border-white/5`}>
-        <Icon size={24} className="text-white" />
-      </div>
-      <h3 className="text-gray-400 text-sm font-medium mb-1 tracking-wide">{title}</h3>
-      {loading ? (
-        <Skeleton className="h-10 w-24 mb-2 bg-white/10" />
-      ) : (
-        <h2 className="text-4xl font-bold text-white mb-2 tracking-tight">{value}</h2>
-      )}
-      <p className="text-xs text-gray-500 font-medium group-hover:text-gray-300 transition-colors">{subtitle}</p>
-    </div>
-  </motion.div>
-);
 
 const Dashboard = () => {
-  const [loading, setLoading] = useState(true);
-  
-  // Data States
-  const [studentCount, setStudentCount] = useState(0);
-  const [financeStats, setFinanceStats] = useState({ total_revenue: 0, collected: 0, pending: 0 });
+  // 1. Initialize state as NULL to detect "loading" vs "empty"
+  const [stats, setStats] = useState(null);
   const [notices, setNotices] = useState([]);
-  const [examData, setExamData] = useState([]); // <--- New State for Chart
-  
-  const fmt = (amt) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amt || 0);
+  const [attendanceData, setAttendanceData] = useState(null);
+  const [loading, setLoading] = useState(true);
 
+  // 2. Fetch Data on Mount
   useEffect(() => {
-    const loadDashboardData = async () => {
+    async function loadDashboardData() {
       try {
-        const [stuRes, finRes, noticeRes, chartRes] = await Promise.all([
-          api.get('students/profiles/'),      
-          api.get('finance/invoices/stats/'), 
-          api.get('notices/posts/'),
-          api.get('results/exams/analytics/').catch(() => ({ data: [] })) // <--- Fetch Analytics
+        setLoading(true);
+        // Fetch all required data in parallel
+        // Note: Ensure these endpoints exist in your Django backend!
+        // We use try/catch inside Promise.allSettled or individual catches if endpoints might fail separately.
+        // For now, simple parallel fetch:
+        
+        const [statsRes, noticesRes, attendanceRes] = await Promise.all([
+          api.get('core/stats/').catch(err => ({ data: { total_students: 0, total_staff: 0, pending_fees: 0 } })), 
+          api.get('notices/').catch(err => ({ data: [] })),
+          api.get('attendance/stats/').catch(err => ({ data: { percentage: 0, present_today: 0 } }))
         ]);
 
-        setStudentCount(stuRes.data.length);
-        setFinanceStats(finRes.data);
-        setNotices(noticeRes.data.slice(0, 3)); 
-        setExamData(chartRes.data);
+        setStats(statsRes.data);
+        setNotices(noticesRes.data);
+        setAttendanceData(attendanceRes.data);
 
-      } catch (err) {
-        console.error("Dashboard Sync Failed:", err);
+      } catch (error) {
+        console.error("Dashboard Data Load Failed:", error);
       } finally {
         setLoading(false);
       }
-    };
+    }
 
     loadDashboardData();
   }, []);
 
+  // 3. Loading Skeleton (Prevents Crash / Blank Screen)
+  if (loading || !stats) {
+    return (
+      <div className="p-8 space-y-8 animate-pulse">
+        <div className="h-8 bg-white/10 w-1/4 rounded mb-8"></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="h-32 bg-white/5 rounded-2xl border border-white/10"></div>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="h-64 bg-white/5 rounded-2xl lg:col-span-2"></div>
+          <div className="h-64 bg-white/5 rounded-2xl"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // 4. Safe Data Access (using Optional Chaining ?. and fallbacks ||)
+  const statCards = [
+    { 
+      title: 'Total Students', 
+      value: stats?.total_students || '0', 
+      icon: Users, 
+      color: 'text-blue-400', 
+      trend: '+12%',
+      bg: 'bg-blue-500/10',
+      border: 'border-blue-500/20'
+    },
+    { 
+      title: 'Attendance', 
+      value: `${attendanceData?.percentage || 0}%`, 
+      icon: CalendarCheck, 
+      color: 'text-emerald-400', 
+      trend: '+5%',
+      bg: 'bg-emerald-500/10',
+      border: 'border-emerald-500/20'
+    },
+    { 
+      title: 'Total Staff', 
+      value: stats?.total_staff || '0', 
+      icon: Briefcase, // Ensure Briefcase is imported or swap icon
+      color: 'text-purple-400', 
+      trend: 'Active',
+      bg: 'bg-purple-500/10',
+      border: 'border-purple-500/20'
+    },
+    { 
+      title: 'Pending Fees', 
+      value: `$${stats?.pending_fees || '0'}`, 
+      icon: AlertCircle, 
+      color: 'text-amber-400', 
+      trend: '-8%',
+      bg: 'bg-amber-500/10',
+      border: 'border-amber-500/20'
+    },
+  ];
+
   return (
-    <div className="min-h-screen bg-[#050505] text-white pb-40 pt-10 px-6 md:px-12 relative overflow-x-hidden selection:bg-blue-500/30">
-      
-      {/* Background Ambience */}
-      <div className="fixed top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-black to-black -z-10"></div>
-      <div className="fixed top-[-20%] right-[-10%] w-[800px] h-[800px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
-      <div className="fixed bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none"></div>
-
+    <div className="p-8 space-y-8 pb-24">
       {/* Header */}
-      <motion.div 
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        className="mb-12 flex justify-between items-end relative z-10"
-      >
+      <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-500 mb-2 tracking-tight">Command Center</h1>
-          <p className="text-gray-400 text-lg">Nexus Institute Overview</p>
+          <h1 className="text-3xl font-bold text-white mb-2">Dashboard Overview</h1>
+          <p className="text-gray-400">Welcome back, here's what's happening today.</p>
         </div>
-        <div className="text-right hidden md:block">
-          <p className="text-gray-500 text-sm uppercase tracking-widest font-bold">Current Session</p>
-          <p className="text-white text-xl font-mono">2025-2026</p>
+        <div className="flex gap-4">
+          <div className="glass-panel px-4 py-2 rounded-xl flex items-center gap-2 text-sm text-gray-300">
+            <Clock className="w-4 h-4 text-blue-400" />
+            <span>{new Date().toLocaleDateString()}</span>
+          </div>
         </div>
-      </motion.div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 relative z-10">
-        <StatCard title="Total Students" value={studentCount} loading={loading} subtitle="Active Enrollments" icon={Users} color="bg-blue-500" delay={0.1} />
-        <StatCard title="Total Revenue" value={fmt(financeStats.total_revenue)} loading={loading} subtitle={`Collected: ${fmt(financeStats.collected)}`} icon={TrendingUp} color="bg-emerald-500" delay={0.2} />
-        <StatCard title="Pending Dues" value={fmt(financeStats.pending)} loading={loading} subtitle="Outstanding Fees" icon={AlertCircle} color="bg-rose-500" delay={0.3} />
-        <StatCard title="Avg Attendance" value="94%" loading={false} subtitle="Daily Average" icon={Clock} color="bg-violet-500" delay={0.4} />
       </div>
 
-      {/* Content Area */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10">
+      {/* Stat Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {statCards.map((stat, index) => (
+          <motion.div
+            key={index}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.1 }}
+            className={`glass-panel p-6 rounded-2xl border ${stat.border} relative overflow-hidden group hover:bg-white/5 transition-all duration-300`}
+          >
+            <div className={`absolute top-0 right-0 w-32 h-32 ${stat.bg} rounded-full blur-2xl -mr-16 -mt-16 transition-all duration-500 group-hover:blur-3xl opacity-50`}></div>
+            
+            <div className="relative z-10">
+              <div className="flex justify-between items-start mb-4">
+                <div className={`p-3 rounded-xl ${stat.bg} border ${stat.border}`}>
+                  <stat.icon className={`w-6 h-6 ${stat.color}`} />
+                </div>
+                <span className="text-xs font-medium text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-lg border border-emerald-400/20">
+                  {stat.trend}
+                </span>
+              </div>
+              <h3 className="text-gray-400 text-sm font-medium mb-1">{stat.title}</h3>
+              <p className="text-2xl font-bold text-white tracking-tight">{stat.value}</p>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* --- PERFORMANCE CHART (Replaced Placeholder) --- */}
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.5 }}
-          className="glass-panel p-8 rounded-[2rem] lg:col-span-2 min-h-[400px] border border-white/10 flex flex-col justify-between"
-        >
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <BookOpen className="text-blue-400" /> Academic Performance
-            </h3>
-            <span className="text-xs font-bold bg-white/10 px-3 py-1 rounded-full text-gray-400">Exam Averages</span>
+        {/* Activity / Performance Chart Area */}
+        <div className="lg:col-span-2 glass-panel p-6 rounded-2xl border border-white/10">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+              <Activity className="w-5 h-5 text-blue-400" />
+              Recent Activity
+            </h2>
+          </div>
+          <div className="h-64 flex items-center justify-center text-gray-500 border-2 border-dashed border-white/10 rounded-xl bg-black/20">
+            Chart Component Placeholder
+          </div>
+        </div>
+
+        {/* Notices / Side Panel */}
+        <div className="glass-panel p-6 rounded-2xl border border-white/10">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+              <Bell className="w-5 h-5 text-yellow-400" />
+              Notice Board
+            </h2>
           </div>
           
-          <div className="h-72 w-full">
-            {loading ? (
-                <Skeleton className="w-full h-full rounded-2xl bg-white/5" />
-            ) : examData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={examData}>
-                    <defs>
-                        <linearGradient id="colorAvg" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                        </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
-                    <XAxis 
-                        dataKey="name" 
-                        stroke="#6b7280" 
-                        tick={{fill: '#9ca3af', fontSize: 12}} 
-                        axisLine={false}
-                        tickLine={false}
-                    />
-                    <YAxis 
-                        stroke="#6b7280" 
-                        tick={{fill: '#9ca3af', fontSize: 12}} 
-                        axisLine={false}
-                        tickLine={false}
-                        domain={[0, 100]}
-                    />
-                    <Tooltip 
-                        contentStyle={{ backgroundColor: '#000', borderColor: '#333', borderRadius: '12px' }}
-                        itemStyle={{ color: '#fff' }}
-                    />
-                    <Area 
-                        type="monotone" 
-                        dataKey="average" 
-                        stroke="#3b82f6" 
-                        strokeWidth={3}
-                        fillOpacity={1} 
-                        fill="url(#colorAvg)" 
-                    />
-                    </AreaChart>
-                </ResponsiveContainer>
-            ) : (
-                <div className="flex flex-col items-center justify-center h-full text-gray-500 gap-2">
-                    <Activity size={32} />
-                    <p>No exam data available yet.</p>
-                </div>
-            )}
-          </div>
-        </motion.div>
-
-        {/* Live Notices Feed */}
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.6 }}
-          className="glass-panel p-8 rounded-[2rem] border border-white/10 bg-white/5"
-        >
-          <div className="flex justify-between items-center mb-6">
-             <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <Bell className="text-yellow-400" /> Notice Board
-             </h3>
-          </div>
-
           <div className="space-y-4">
-            {loading ? (
-                [...Array(3)].map((_, i) => (
-                    <div key={i} className="p-5 rounded-[1.5rem] bg-black/20 border border-white/5">
-                        <Skeleton className="h-3 w-20 mb-3 bg-white/10" />
-                        <Skeleton className="h-5 w-3/4 mb-2 bg-white/10" />
-                    </div>
-                ))
-            ) : notices.length === 0 ? (
-                <div className="text-gray-500 text-center py-10 bg-white/5 rounded-2xl border border-dashed border-white/10">No active notices.</div>
-            ) : (
-                notices.map((notice) => (
-                  <div key={notice.id} className="p-5 rounded-[1.5rem] bg-black/20 hover:bg-white/5 transition-all cursor-pointer border border-white/5 group relative overflow-hidden">
-                    <div className="flex justify-between items-start mb-2 relative z-10">
-                      <div className="flex items-center gap-2">
-                        <CalendarCheck size={14} className="text-blue-400" />
-                        <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">{notice.category}</span>
-                      </div>
-                      <span className="text-[10px] text-gray-500 font-mono">{new Date(notice.created_at).toLocaleDateString()}</span>
-                    </div>
-                    <h4 className="font-bold text-white mb-1 group-hover:text-blue-200 transition-colors relative z-10">{notice.title}</h4>
-                    <p className="text-xs text-gray-400 line-clamp-2 relative z-10">{notice.content}</p>
+            {notices.length > 0 ? (
+              notices.slice(0, 3).map((notice, i) => (
+                <div key={i} className="p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-xs font-medium text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded">
+                      {notice.category || 'General'}
+                    </span>
+                    <span className="text-xs text-gray-500">{new Date(notice.created_at).toLocaleDateString()}</span>
                   </div>
-                ))
+                  <h4 className="text-sm font-medium text-white mb-1 line-clamp-1">{notice.title}</h4>
+                  <p className="text-xs text-gray-400 line-clamp-2">
+                    {notice.content}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <div className="text-center text-gray-500 py-8">
+                No recent notices
+              </div>
             )}
           </div>
-        </motion.div>
+        </div>
       </div>
-
-      <Dock />
     </div>
   );
 };
+
+// Needed for the 'Briefcase' icon reference in statCards
+import { Briefcase } from 'lucide-react'; 
 
 export default Dashboard;

@@ -1,13 +1,13 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.http import HttpResponse  # <--- Required for PDF response
+from django.http import HttpResponse 
 from django.db import transaction
 from django.db.models import Sum
 from decimal import Decimal
 import io
 
-# --- ReportLab Imports for PDF ---
+# --- ReportLab Imports ---
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
@@ -24,11 +24,21 @@ class FeeHeadViewSet(viewsets.ModelViewSet):
     serializer_class = FeeHeadSerializer
 
 class FeeStructureViewSet(viewsets.ModelViewSet):
-    queryset = FeeStructure.objects.all()
+    # OPTIMIZATION: Fetch Class and Fee Name
+    queryset = FeeStructure.objects.select_related('classroom', 'fee_head', 'academic_year').all()
     serializer_class = FeeStructureSerializer
 
 class InvoiceViewSet(viewsets.ModelViewSet):
-    queryset = Invoice.objects.all().order_by('-issue_date')
+    # OPTIMIZATION: Fetch Student, User Profile, Year, and nested Items
+    queryset = Invoice.objects.select_related(
+        'student', 
+        'student__user', 
+        'academic_year'
+    ).prefetch_related(
+        'items', 
+        'items__fee_head'
+    ).all().order_by('-issue_date')
+    
     serializer_class = InvoiceSerializer
 
     def get_queryset(self):
@@ -40,15 +50,12 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def stats(self, request):
-        """
-        Returns Dashboard Financial Stats using DB Aggregation for accuracy.
-        """
+        """ Dashboard Financial Stats """
         stats = Invoice.objects.aggregate(
             total_rev=Sum('total_amount'),
             collected=Sum('paid_amount'),
             pending=Sum('balance_due')
         )
-        
         return Response({
             "total_revenue": stats['total_rev'] or 0,
             "collected": stats['collected'] or 0,
@@ -57,9 +64,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def bulk_generate(self, request):
-        """
-        Generates Invoices for all students in a specific class.
-        """
+        """ Generates Invoices for all students in a specific class. """
         serializer = BulkInvoiceSerializer(data=request.data)
         if serializer.is_valid():
             cls = serializer.validated_data['classroom']
@@ -78,15 +83,12 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             try:
                 with transaction.atomic():
                     for student in students:
-                        # Create Invoice Header
                         inv = Invoice.objects.create(
                             student=student,
                             academic_year=year,
                             due_date=due_date,
                             total_amount=Decimal('0.00')
                         )
-                        
-                        # Create Line Items
                         total = Decimal('0.00')
                         for struct in structures:
                             InvoiceItem.objects.create(
@@ -96,7 +98,6 @@ class InvoiceViewSet(viewsets.ModelViewSet):
                             )
                             total += struct.amount
                         
-                        # Update Invoice Total
                         inv.total_amount = total
                         inv.balance_due = total
                         inv.save()
@@ -108,15 +109,10 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         
         return Response(serializer.errors, status=400)
 
-    # --- NEW: PDF DOWNLOAD ACTION ---
     @action(detail=True, methods=['get'])
     def download(self, request, pk=None):
         invoice = self.get_object()
-        
-        # Create a file-like buffer to receive PDF data.
         buffer = io.BytesIO()
-
-        # Create the PDF object, using the buffer as its "file."
         p = canvas.Canvas(buffer, pagesize=letter)
         width, height = letter
 
@@ -158,7 +154,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         p.drawRightString(width - 50, height - 145, f"STATUS: {invoice.status}")
         p.setFillColor(colors.black)
 
-        # --- TABLE HEADER ---
+        # --- ITEMS ---
         y = height - 220
         p.setFillColor(colors.lightgrey)
         p.rect(50, y, width - 100, 20, fill=1, stroke=0)
@@ -167,7 +163,6 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         p.drawString(60, y + 6, "FEE DESCRIPTION")
         p.drawRightString(width - 60, y + 6, "AMOUNT")
 
-        # --- ITEMS ---
         y -= 20
         p.setFont("Helvetica", 10)
         for item in invoice.items.all():
@@ -191,15 +186,14 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         p.drawString(350, y, "Balance Due:")
         p.drawRightString(width - 60, y, str(invoice.balance_due))
 
-        # Close the PDF object cleanly
         p.showPage()
         p.save()
-
         buffer.seek(0)
         return HttpResponse(buffer, content_type='application/pdf')
 
 class TransactionViewSet(viewsets.ModelViewSet):
-    queryset = Transaction.objects.all().order_by('-payment_date')
+    # OPTIMIZATION: Fetch Invoice and Student
+    queryset = Transaction.objects.select_related('invoice', 'invoice__student').all().order_by('-payment_date')
     serializer_class = TransactionSerializer
 
     def create(self, request, *args, **kwargs):

@@ -8,7 +8,10 @@ from academics.models import SubjectAllocation
 import random
 
 class TimetableSlotViewSet(viewsets.ModelViewSet):
-    queryset = TimetableSlot.objects.all()
+    # OPTIMIZATION: Fetch relations to avoid N+1 in Grid View
+    queryset = TimetableSlot.objects.select_related(
+        'classroom', 'subject', 'teacher', 'teacher__user'
+    ).all()
     serializer_class = TimetableSlotSerializer
 
     def get_queryset(self):
@@ -20,10 +23,8 @@ class TimetableSlotViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def bulk_update_slots(self, request):
-        """ Manual Save (Drag & Drop) """
         slots_data = request.data.get('slots', [])
         classroom_id = request.data.get('classroom_id')
-
         if not classroom_id:
             return Response({"error": "Classroom ID required"}, status=400)
 
@@ -36,9 +37,9 @@ class TimetableSlotViewSet(viewsets.ModelViewSet):
             else:
                 return Response(serializer.errors, status=400)
 
-    # --- SMARTER AI SCHEDULER ---
     @action(detail=False, methods=['post'])
     def auto_generate(self, request):
+        """ SMARTER AI SCHEDULER """
         classroom_id = request.data.get('classroom_id')
         if not classroom_id:
             return Response({"error": "Classroom ID required"}, status=400)
@@ -49,44 +50,29 @@ class TimetableSlotViewSet(viewsets.ModelViewSet):
         
         # 2. Fetch Resources
         allocations = list(SubjectAllocation.objects.filter(classroom_id=classroom_id))
-        
         if not allocations:
-            return Response({"error": "No subjects assigned. Go to 'Classroom Cockpit' first."}, status=400)
+            return Response({"error": "No subjects assigned."}, status=400)
 
         created_slots = []
         
-        # 3. The Constraint Algorithm
+        # 3. Constraint Algorithm
         with transaction.atomic():
-            # Reset this class
             TimetableSlot.objects.filter(classroom_id=classroom_id).delete()
-
-            # CONSTRAINT TRACKERS
             weekly_counts = {alloc.id: 0 for alloc in allocations}
-            MAX_WEEKLY_QUOTA = 5  # Max 5 classes of "Math" per week
+            MAX_WEEKLY_QUOTA = 5
 
             for day in DAYS:
                 daily_pool = allocations.copy()
-                random.shuffle(daily_pool) # Randomize preference
-                
-                # Track what we placed TODAY (Max 1 per day)
+                random.shuffle(daily_pool)
                 daily_placed_subjects = set() 
 
                 for time in TIMES:
-                    slot_filled = False
-                    
                     for alloc in daily_pool:
-                        # RULE 1: Weekly Limit (Don't teach Math > 5 times)
-                        if weekly_counts[alloc.id] >= MAX_WEEKLY_QUOTA:
-                            continue
+                        if weekly_counts[alloc.id] >= MAX_WEEKLY_QUOTA: continue
+                        if alloc.id in daily_placed_subjects: continue
 
-                        # RULE 2: Daily Limit (Don't teach Math twice in one day)
-                        if alloc.id in daily_placed_subjects:
-                            continue
-
-                        # RULE 3: Teacher Availability (Conflict Check)
                         is_teacher_busy = False
                         if alloc.teacher:
-                            # Check if teacher is in another class at this time
                             is_teacher_busy = TimetableSlot.objects.filter(
                                 teacher=alloc.teacher,
                                 day_of_week=day,
@@ -94,7 +80,6 @@ class TimetableSlotViewSet(viewsets.ModelViewSet):
                             ).exists()
                         
                         if not is_teacher_busy:
-                            # SUCCESS: Place the block
                             slot = TimetableSlot.objects.create(
                                 classroom_id=classroom_id,
                                 day_of_week=day,
@@ -104,16 +89,9 @@ class TimetableSlotViewSet(viewsets.ModelViewSet):
                                 teacher=alloc.teacher
                             )
                             created_slots.append(slot)
-                            
-                            # Update Trackers
                             weekly_counts[alloc.id] += 1
                             daily_placed_subjects.add(alloc.id)
-                            slot_filled = True
-                            
-                            # Break inner loop to move to next Time Slot
                             break 
-                    
-                    # If loop finishes without break, slot remains empty (Free Period)
 
         return Response({"message": f"Generated {len(created_slots)} optimized slots.", "slots": len(created_slots)})
 
