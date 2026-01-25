@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Lock, ArrowRight } from 'lucide-react';
-import axios from 'axios';
+import api from './api';
 
 const Login = () => {
   const [username, setUsername] = useState('');
@@ -19,7 +19,7 @@ const Login = () => {
 
     try {
       // 1. Send Credentials to Django Backend
-      const response = await axios.post('http://127.0.0.1:8000/api/token/', {
+      const response = await api.post('token/', {
         username,
         password
       });
