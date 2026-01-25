@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-l3_&^p2@!12nq4s(fgwspt)*=5s@3@fqofva#o)uh6gf-avpmy
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -146,10 +146,12 @@ STATIC_URL = 'static/'
 AUTH_USER_MODEL = 'core.User'
 
 # Allow React (Port 5173 is Vite default) to talk to Django
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:5173",
+#     "http://127.0.0.1:5173",
+# ]
+
+CORS_ALLOW_ALL_ORIGINS = True
 
 # backend/config/settings.py
 
