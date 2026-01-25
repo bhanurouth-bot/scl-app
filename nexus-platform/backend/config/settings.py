@@ -145,22 +145,24 @@ STATIC_URL = 'static/'
 # Tell Django to use our model, not the default one
 AUTH_USER_MODEL = 'core.User'
 
-# Allow React (Port 5173 is Vite default) to talk to Django
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:5173",
-#     "http://127.0.0.1:5173",
-# ]
+# --- CORS SETTINGS ---
+# To use cookies, we cannot use ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False 
+CORS_ALLOW_CREDENTIALS = True
 
-CORS_ALLOW_ALL_ORIGINS = True
-
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
 # backend/config/settings.py
 
+# --- DRF & JWT SETTINGS ---
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'core.authentication.CookieJWTAuthentication', # Use our custom class
     ),
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated', # Lock down the whole API
+        'rest_framework.permissions.IsAuthenticated',
     ],
 }
 
@@ -168,4 +170,6 @@ from datetime import timedelta
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
 }

@@ -19,16 +19,17 @@ const Login = () => {
 
     try {
       // 1. Send Credentials to Django Backend
-      const response = await api.post('token/', {
+      // The backend will now set HttpOnly cookies for 'access_token' and 'refresh_token'
+      await api.post('token/', {
         username,
         password
       });
 
-      console.log("Login Success:", response.data);
+      console.log("Login Success");
 
-      // 2. Save the Security Tokens
-      localStorage.setItem('access_token', response.data.access);
-      localStorage.setItem('refresh_token', response.data.refresh);
+      // 2. NO LOCALSTORAGE STORAGE HERE (Fixed XSS Vulnerability)
+      // localStorage.setItem('access_token', response.data.access); <--- REMOVED
+      // localStorage.setItem('refresh_token', response.data.refresh); <--- REMOVED
 
       // 3. Redirect to the Dashboard
       navigate('/dashboard');
